@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -25,6 +14,7 @@ namespace LancerEdit
     public class ModelNodes
     {
         public List<ModelNode> Nodes = new List<ModelNode>();
+        public LUtfNode Cons;
     }
     public class ModelNode
     {
@@ -64,9 +54,9 @@ namespace LancerEdit
                 {
                     Name = "Orientation", Parent = node,
                     Data = UnsafeHelpers.CastArray(new float[] {
-                        hp.Orientation.M11, hp.Orientation.M12, hp.Orientation.M13,
-                        hp.Orientation.M21, hp.Orientation.M22, hp.Orientation.M23,
-                        hp.Orientation.M31, hp.Orientation.M32, hp.Orientation.M33
+                        hp.Orientation.M11, hp.Orientation.M21, hp.Orientation.M31,
+                        hp.Orientation.M12, hp.Orientation.M22, hp.Orientation.M32,
+                        hp.Orientation.M13, hp.Orientation.M23, hp.Orientation.M33
                     })
                 });
                 node.Children.Add(new LUtfNode()

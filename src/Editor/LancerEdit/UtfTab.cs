@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -48,7 +37,7 @@ namespace LancerEdit
             win.ActiveTab = this;
         }
       
-        TreeNodeFlags tflags = TreeNodeFlags.OpenOnArrow | TreeNodeFlags.OpenOnDoubleClick;
+        ImGuiTreeNodeFlags tflags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
         TextBuffer text;
 
         public override void Dispose()
@@ -101,10 +90,10 @@ namespace LancerEdit
             }
             ImGui.Separator();
             //Tree
-            ImGui.BeginChild("##scroll", false, 0);
-            var flags = selectedNode == Utf.Root ? TreeNodeFlags.Selected | tflags : tflags;
+            ImGui.BeginChild("##scroll");
+            var flags = selectedNode == Utf.Root ? ImGuiTreeNodeFlags.Selected | tflags : tflags;
             var isOpen = ImGui.TreeNodeEx("/", flags);
-            if (ImGuiNative.igIsItemClicked(0))
+            if (ImGui.IsItemClicked(0))
             {
                 selectedNode = Utf.Root;
             }
@@ -150,6 +139,8 @@ namespace LancerEdit
                                 n.HardpointsNode = child.Children.FirstOrDefault((x) => x.Name.Equals("hardpoints", StringComparison.OrdinalIgnoreCase));
                                 hpn.Nodes.Add(n);
                             }
+                            var cmpnd = Utf.Root.Children.First((x) => x.Name.Equals("cmpnd", StringComparison.OrdinalIgnoreCase));
+                            hpn.Cons = cmpnd.Children.FirstOrDefault((x) => x.Name.Equals("cons", StringComparison.OrdinalIgnoreCase));
                         } else {
                             var n = new ModelNode();
                             n.Name = "ROOT";
@@ -223,24 +214,25 @@ namespace LancerEdit
                     if (ale != null)
                         main.AddTab(new AleViewer("Ale Viewer (" + Title + ")", Title, ale, main));
                 }
-                if (ImGui.MenuItem("Refresh Resources"))
-                {
-                    main.Resources.RemoveResourcesForId(Unique.ToString());
-                    main.Resources.AddResources(Utf.Export(), Unique.ToString());
-                }
                 ImGui.EndPopup();
+            }
+            ImGui.SameLine();
+            if(ImGui.Button("Reload Resources"))
+            {
+                main.Resources.RemoveResourcesForId(Unique.ToString());
+                main.Resources.AddResources(Utf.Export(), Unique.ToString());
             }
             Popups();
         }
        
-        unsafe int DummyCallback(TextEditCallbackData* data)
+        unsafe int DummyCallback(ImGuiInputTextCallbackData* data)
         {
             return 0;
         }
 
         unsafe void NodeInformation()
         {
-            ImGui.BeginChild("##scrollnode", false, 0);
+            ImGui.BeginChild("##scrollnode");
             ImGui.Text("Name: " + selectedNode.Name);
             if (selectedNode.Children != null)
             {
@@ -292,7 +284,7 @@ namespace LancerEdit
                     //String Preview
                     ImGui.Text("String:");
                     ImGui.SameLine();
-                    ImGui.InputText("", selectedNode.Data, (uint)Math.Min(selectedNode.Data.Length, 32), InputTextFlags.ReadOnly, DummyCallback);
+                    ImGui.InputText("##strpreview", selectedNode.Data, (uint)Math.Min(selectedNode.Data.Length, 32), ImGuiInputTextFlags.ReadOnly, DummyCallback);
                     //Float Preview
                     ImGui.Text("Float:");
                     fixed (byte* ptr = selectedNode.Data)
@@ -404,9 +396,9 @@ namespace LancerEdit
                         var tab = new TextureViewer(title, tex);
                         main.AddTab(tab);
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
-                        ErrorPopup("Node data couldn't be opened as texture");
+                        ErrorPopup("Node data couldn't be opened as texture:\n" + ex.Message);
                     }
                 }
                 if (ImGui.Button("Play Audio"))
@@ -552,13 +544,13 @@ namespace LancerEdit
                 ImGui.MenuItem(node.Name, false);
                 ImGui.MenuItem(string.Format("CRC: 0x{0:X}", CrcTool.FLModelCrc(node.Name)), false);
                 ImGui.Separator();
-                if (ImGui.MenuItem("Rename", node != Utf.Root))
+                if(Theme.IconMenuItem("Rename","rename",Color4.White, node != Utf.Root))
                 {
                     text.SetText(node.Name);
                     renameNode = node;
                     popups.OpenPopup("Rename Node");
                 }
-                if (ImGui.MenuItem("Delete", node != Utf.Root))
+                if (Theme.IconMenuItem("Delete", "delete", Color4.White, node != Utf.Root))
                 {
                     deleteParent = parent;
                     deleteNode = node;
@@ -571,7 +563,7 @@ namespace LancerEdit
                         deleteParent.Children.Remove(deleteNode);
                     });
                 }
-                if (ImGui.MenuItem("Clear", node.Children != null || node.Data != null))
+                if (Theme.IconMenuItem("Clear", "clear", Color4.White, node.Children != null || node.Data != null))
                 {
                     clearNode = node;
                     Confirm("Clearing this node will delete all data and children. Continue?", () =>
@@ -584,14 +576,14 @@ namespace LancerEdit
                     });
                 }
                 ImGui.Separator();
-                if (ImGui.BeginMenu("Add"))
+                if (Theme.BeginIconMenu("Add","add",Color4.White))
                 {
                     if (ImGui.MenuItem("Child"))
                     {
                         text.SetText("");
                         addParent = null;
                         addNode = node;
-                        if (selectedNode.Data != null)
+                        if (node.Data != null)
                         {
                             Confirm("Adding a node will clear data. Continue?", () =>
                             {
@@ -620,20 +612,20 @@ namespace LancerEdit
                     ImGui.EndMenu();
                 }
                 ImGui.Separator();
-                if (ImGui.MenuItem("Cut", node != Utf.Root))
+                if (Theme.IconMenuItem("Cut", "cut", Color4.White, node != Utf.Root))
                 {
                     parent.Children.Remove(node);
                     main.ClipboardCopy = false;
                     main.Clipboard = node;
                 }
-                if (ImGui.MenuItem("Copy", node != Utf.Root))
+                if (Theme.IconMenuItem("Copy", "copy", Color4.White, node != Utf.Root))
                 {
                     main.ClipboardCopy = true;
                     main.Clipboard = node.MakeCopy();
                 }
                 if (main.Clipboard != null)
                 {
-                    if (ImGui.BeginMenu("Paste"))
+                    if (Theme.BeginIconMenu("Paste","paste",Color4.White))
                     {
                         if (ImGui.MenuItem("Before", node != Utf.Root))
                         {
@@ -710,7 +702,7 @@ namespace LancerEdit
                 }
                 else
                 {
-                    ImGui.MenuItem("Paste", false);
+                    Theme.IconMenuItem("Paste", "paste", Color4.White, false);
                 }
                 ImGui.EndPopup();
             }
@@ -721,9 +713,9 @@ namespace LancerEdit
             string id = node.Name + "##" + parent.Name + idx;
             if (node.Children != null)
             {
-                var flags = selectedNode == node ? TreeNodeFlags.Selected | tflags : tflags;
+                var flags = selectedNode == node ? ImGuiTreeNodeFlags.Selected | tflags : tflags;
                 var isOpen = ImGui.TreeNodeEx(id, flags);
-                if (ImGuiNative.igIsItemClicked(0))
+                if (ImGui.IsItemClicked(0))
                 {
                     selectedNode = node;
                 }
@@ -752,7 +744,7 @@ namespace LancerEdit
                     ImGui.SameLine();
                 }
                 bool selected = selectedNode == node;
-                if (ImGui.SelectableEx(id, ref selected))
+                if (ImGui.Selectable(id, ref selected))
                 {
                     selectedNode = node;
                 }

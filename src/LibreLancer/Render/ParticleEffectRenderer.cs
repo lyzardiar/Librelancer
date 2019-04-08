@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using LibreLancer.Fx;
 
@@ -26,10 +15,12 @@ namespace LibreLancer
 		ParticleEffectInstance fx;
 		public ParticleEffectRenderer(ParticleEffect effect)
 		{
+            if (effect == null) return;
 			fx = new ParticleEffectInstance(effect);
 		}
         public override bool PrepareRender(ICamera camera, NebulaRenderer nr, SystemRenderer sys)
         {
+            if (fx == null) return false;
             this.sys = sys;
             dist = VectorMath.DistanceSquared(pos, camera.Position);
             fx.Resources = sys.ResourceManager;
@@ -47,6 +38,7 @@ namespace LibreLancer
 		const float CULL = CULL_DISTANCE * CULL_DISTANCE;
 		public override void Update(TimeSpan time, Vector3 position, Matrix4 transform)
 		{
+            if (fx == null) return;
 			pos = position;
 			if (Active && dist < CULL)
 			{
@@ -56,12 +48,14 @@ namespace LibreLancer
 		}
 		public override void Draw(ICamera camera, CommandBuffer commands, SystemLighting lights, NebulaRenderer nr)
 		{
+            if (fx == null) return;
 			    fx.Draw(sys.Polyline, sys.Billboards, sys.DebugRenderer, tr, SParam);
 		}
 
         // nice name in debugger window
         public override string ToString()
         {
+            if (fx == null) return "Null ParticleFx";
             return $"[{this.GetType().Name}] {fx.Effect.Name}";
         }
     }

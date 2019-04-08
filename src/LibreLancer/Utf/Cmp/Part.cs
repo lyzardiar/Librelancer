@@ -1,28 +1,11 @@
-﻿/* The contents of this file a
- * re subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is Starchart code (http://flapi.sourceforge.net/).
- * Data structure from Freelancer UTF Editor by Cannon & Adoxa, continuing the work of Colin Sanby and Mario 'HCl' Brito (http://the-starport.net)
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
 using System.Collections.Generic;
 
-//using FLCommon;
-
-//using FLApi.Universe;
 using LibreLancer.Utf.Mat;
 
 namespace LibreLancer.Utf.Cmp
@@ -30,6 +13,7 @@ namespace LibreLancer.Utf.Cmp
     public class Part : IDrawable
     {
         private Dictionary<string, ModelFile> models;
+        private Dictionary<string, CmpCameraInfo> cameras;
         private ConstructCollection constructs;
 
         private string objectName;
@@ -49,7 +33,13 @@ namespace LibreLancer.Utf.Cmp
                 return construct;
             }
         }
-
+        /// <summary>
+        /// EDITOR USE ONLY: Changes the construct object for the part
+        /// </summary>
+        public void UpdateConstruct(AbstractConstruct con)
+        {
+            construct = con;
+        }
         private string fileName;
         private ModelFile model;
         public ModelFile Model
@@ -60,18 +50,34 @@ namespace LibreLancer.Utf.Cmp
                 return model;
             }
         }
+
+        private CmpCameraInfo camera;
+        bool cameraTried = false;
+        public CmpCameraInfo Camera
+        {
+            get
+            {
+                if (camera == null && !cameraTried) {
+                    cameraTried = true;
+                    cameras.TryGetValue(fileName, out camera);
+                }
+                return camera;
+            }
+        }
+
         public string FileName
         {
             get { return fileName; }
         }
         public bool IsBroken()
         {
-            return !models.ContainsKey(fileName);
+            return !cameras.ContainsKey(fileName) && !models.ContainsKey(fileName);
         }
 
-        public Part(string objectName, string fileName, Dictionary<string, ModelFile> models, ConstructCollection constructs)
+        public Part(string objectName, string fileName, Dictionary<string, ModelFile> models, Dictionary<string,CmpCameraInfo> cams, ConstructCollection constructs)
         {
             this.models = models;
+            this.cameras = cams;
             this.constructs = constructs;
             this.objectName = objectName;
             this.fileName = fileName;
@@ -79,11 +85,13 @@ namespace LibreLancer.Utf.Cmp
 
 		public void Initialize(ResourceManager cache)
         {
+            if (Camera != null) return;
             Model.Initialize(cache);
         }
 
         public void Resized()
         {
+            if (Camera != null) return;
             Model.Resized();
         }
 
@@ -94,11 +102,13 @@ namespace LibreLancer.Utf.Cmp
 
 		public void Update(ICamera camera, TimeSpan delta, TimeSpan totalTime)
         {
-			Model.Update (camera, delta, totalTime);
+            if (Camera != null) return;
+            Model.Update (camera, delta, totalTime);
         }
 
 		public void Draw(RenderState rstate, Matrix4 world, Lighting light)
         {
+            if (Camera != null) return;
             Matrix4 transform = world;
             if (Construct != null) transform = Construct.Transform * world;
             Model.Draw(rstate, transform, light);
@@ -106,21 +116,30 @@ namespace LibreLancer.Utf.Cmp
 
 		public void DrawBuffer(CommandBuffer buffer, Matrix4 world, ref Lighting light, Material overrideMat = null)
 		{
-			Matrix4 transform = world;
+            if (Camera != null) return;
+            Matrix4 transform = world;
 			if (Construct != null) transform = Construct.Transform * world;
 			Model.DrawBuffer(buffer, transform, ref light, overrideMat);
 		}
 
         public void DrawBufferLevel(int level, CommandBuffer buffer, Matrix4 world, ref Lighting light, Material overrideMat = null)
         {
+            if (Camera != null) return;
             Matrix4 transform = world;
             if (Construct != null) transform = Construct.Transform * world;
             Model.DrawBufferLevel(Model.Levels[level], buffer, transform, ref light, overrideMat);
         }
 
-		public Part Clone(ConstructCollection newcol)
+        public Matrix4 GetTransform(Matrix4 world)
+        {
+            Matrix4 transform = world;
+            if (Construct != null) transform = Construct.Transform * world;
+            return transform;
+        }
+
+        public Part Clone(ConstructCollection newcol)
 		{
-			return new Part(ObjectName, fileName, models, newcol);
+			return new Part(ObjectName, fileName, models,cameras, newcol);
 		}
     }
 }

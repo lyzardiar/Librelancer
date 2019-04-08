@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using LibreLancer.GameData;
@@ -23,65 +12,70 @@ namespace LibreLancer
 	{
 		public PhysicsWorld Physics;
 		public SystemRenderer Renderer;
+        public ProjectileManager Projectiles;
+
 		public List<GameObject> Objects = new List<GameObject>();
 		public delegate void RenderUpdateHandler(TimeSpan delta);
 		public event RenderUpdateHandler RenderUpdate;
 		public delegate void PhysicsUpdateHandler(TimeSpan delta);
 		public event PhysicsUpdateHandler PhysicsUpdate;
+
 		public GameWorld(SystemRenderer render)
 		{
 			Renderer = render;
             render.World = this;
             Physics = new PhysicsWorld();
             Physics.FixedUpdate += FixedUpdate;
+            Projectiles = new ProjectileManager(this);
 		}
 
-		public void LoadSystem(StarSystem sys, ResourceManager res)
+        public void LoadSystem(StarSystem sys, ResourceManager res)
 		{
-			foreach (var g in Objects)
-				g.Unregister(Physics);
-			
-			Renderer.StarSystem = sys;
+            foreach (var g in Objects)
+                g.Unregister(Physics);
 
-			Objects = new List<GameObject>();
+            Renderer.StarSystem = sys;
 
-			foreach (var obj in sys.Objects)
-			{
-				var g = new GameObject(obj.Archetype, res, true);
-				g.Name = obj.DisplayName;
-				g.Nickname = obj.Nickname;
-				g.Transform = (obj.Rotation ?? Matrix4.Identity) * Matrix4.CreateTranslation(obj.Position);
-				g.SetLoadout(obj.Loadout, obj.LoadoutNoHardpoint);
-				g.StaticPosition = obj.Position;
-				g.World = this;
-				if (g.RenderComponent != null) g.RenderComponent.LODRanges = obj.Archetype.LODRanges;
-				if (obj.Dock != null)
-				{
-					if (obj.Archetype.DockSpheres.Count > 0) //Dock with no DockSphere?
-					{
-						g.Components.Add(new DockComponent(g)
-						{
-							Action = obj.Dock,
-							DockAnimation = obj.Archetype.DockSpheres[0].Script,
-							DockHardpoint = obj.Archetype.DockSpheres[0].Hardpoint,
-							TriggerRadius = obj.Archetype.DockSpheres[0].Radius
-						});
-					}
-				}
-				g.Register(Physics);
-				Objects.Add(g);
-			}
-			foreach (var field in sys.AsteroidFields)
-			{
-				var g = new GameObject();
-				g.Resources = res;
-				g.World = this;
-				g.Components.Add(new AsteroidFieldComponent(field, g));
-				Objects.Add(g);
+            Objects = new List<GameObject>();
+            Objects.Add((new GameObject() { Nickname = "projectiles", RenderComponent = new ProjectileRenderer(Projectiles) }));
+
+            foreach (var obj in sys.Objects)
+            {
+                var g = new GameObject(obj.Archetype, res, true);
+                g.Name = obj.DisplayName;
+                g.Nickname = obj.Nickname;
+                g.Transform = (obj.Rotation ?? Matrix4.Identity) * Matrix4.CreateTranslation(obj.Position);
+                g.SetLoadout(obj.Loadout, obj.LoadoutNoHardpoint);
+                g.StaticPosition = obj.Position;
+                g.World = this;
+                if (g.RenderComponent != null) g.RenderComponent.LODRanges = obj.Archetype.LODRanges;
+                if (obj.Dock != null)
+                {
+                    if (obj.Archetype.DockSpheres.Count > 0) //Dock with no DockSphere?
+                    {
+                        g.Components.Add(new DockComponent(g)
+                        {
+                            Action = obj.Dock,
+                            DockAnimation = obj.Archetype.DockSpheres[0].Script,
+                            DockHardpoint = obj.Archetype.DockSpheres[0].Hardpoint,
+                            TriggerRadius = obj.Archetype.DockSpheres[0].Radius
+                        });
+                    }
+                }
                 g.Register(Physics);
-			}
-			GC.Collect();
-		}
+                Objects.Add(g);
+            }
+            foreach (var field in sys.AsteroidFields)
+            {
+                var g = new GameObject();
+                g.Resources = res;
+                g.World = this;
+                g.Components.Add(new AsteroidFieldComponent(field, g));
+                Objects.Add(g);
+                g.Register(Physics);
+            }
+            GC.Collect();
+        }
 
 		public GameObject GetObject(string nickname)
 		{
@@ -101,6 +95,7 @@ namespace LibreLancer
 
         void FixedUpdate(TimeSpan timespan)
         {
+            Projectiles.FixedUpdate(timespan);
             if (PhysicsUpdate != null) PhysicsUpdate(timespan);
             for (int i = 0; i < Objects.Count; i++)
                 Objects[i].FixedUpdate(timespan);

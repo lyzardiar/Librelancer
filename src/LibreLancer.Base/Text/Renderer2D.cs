@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Runtime.InteropServices;
 using SharpFont;
@@ -103,7 +92,7 @@ namespace LibreLancer
 		public Renderer2D (RenderState rstate)
 		{
 			rs = rstate;
-			FT = new Library ();
+            FT = new Library();
 			textShader = new Shader (vertex_source, text_fragment_source);
 			textShader.SetInteger (textShader.GetLocation("tex"), 0);
 			imgShader = new Shader (vertex_source, img_fragment_source);
@@ -196,11 +185,11 @@ namespace LibreLancer
 			if (!active)
 				throw new InvalidOperationException("Renderer2D.Start() must be called before Renderer2D.DrawWithClip()");
 			Flush();
-			GL.Enable(GL.GL_SCISSOR_TEST);
-			GL.Scissor(clip.X, vpHeight - clip.Y - clip.Height, clip.Width, clip.Height);
+            rs.ScissorEnabled = true;
+            rs.ScissorRectangle = clip;
 			drawfunc();
 			Flush();
-			GL.Disable(GL.GL_SCISSOR_TEST);
+            rs.ScissorEnabled = false;
 		}
 
 		public void DrawString(Font font, float size, string str, Vector2 vec, Color4 color)

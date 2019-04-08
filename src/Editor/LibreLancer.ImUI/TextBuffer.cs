@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -24,7 +13,7 @@ namespace LibreLancer.ImUI
 	{
 		public int Size;
 		public IntPtr Pointer;
-		public TextEditCallback Callback;
+		public ImGuiInputTextCallback Callback;
         public TextBuffer(int sz = 2048)
 		{
             if ((sz % 8) != 0) throw new Exception("Must be multiple of 8");
@@ -43,7 +32,7 @@ namespace LibreLancer.ImUI
 			}
 		}
 
-		int HandleTextEditCallback(TextEditCallbackData* data)
+		int HandleTextEditCallback(ImGuiInputTextCallbackData* data)
 		{
 			return 0;
 		}
@@ -62,7 +51,21 @@ namespace LibreLancer.ImUI
 				Marshal.WriteByte(Pointer,len,0);
 		}
 
-		public byte[] GetByteArray()
+        public unsafe void InputText(string id, ImGuiInputTextFlags flags, int sz = -1)
+        {
+            var idBytes = UnsafeHelpers.StringToHGlobalUTF8(id);
+            ImGuiNative.igInputText((byte*)idBytes, (byte*)Pointer, (uint)(sz > 0 ? sz : Size), flags, Callback, (void*)0);
+            Marshal.FreeHGlobal(idBytes);
+        }
+
+        public void InputTextMultiline(string id, Vector2 size, ImGuiInputTextFlags flags, int sz = -1)
+        {
+            var idBytes = UnsafeHelpers.StringToHGlobalUTF8(id);
+            ImGuiNative.igInputTextMultiline((byte*)idBytes, (byte*)Pointer, (uint)(sz > 0 ? sz : Size), size, flags, Callback, (void*)0);
+            Marshal.FreeHGlobal(idBytes);
+        }
+
+        public byte[] GetByteArray()
 		{
 			int len = Size;
 			for (int i = 0; i < Size; i++)

@@ -1,30 +1,15 @@
-﻿/* The contents of this file a
- * re subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is Starchart code (http://flapi.sourceforge.net/).
- * Data structure from Freelancer UTF Editor by Cannon & Adoxa, continuing the work of Colin Sanby and Mario 'HCl' Brito (http://the-starport.net)
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 
 using LibreLancer.Utf.Vms;
 using LibreLancer.Utf.Anm;
 using LibreLancer.Utf.Mat;
-//using .Universe;
 
 namespace LibreLancer.Utf.Cmp
 {
@@ -46,17 +31,21 @@ namespace LibreLancer.Utf.Cmp
 		public List<Part> Parts { get; private set; }
         public ConstructCollection Constructs { get; private set; }
         public Dictionary<string, ModelFile> Models { get; private set; }
+        public Dictionary<string, CmpCameraInfo> Cameras { get; private set; }
 
-		public CmpFile(string path, ILibFile additionalLibrary) : this(parseFile(path), additionalLibrary)
+        public CmpFile(string path, ILibFile additionalLibrary) : this(parseFile(path), additionalLibrary)
 		{
 			Path = path;
 		}
+
+        public IEnumerable<Part> ModelParts() => Parts.Where(x => x.Camera == null);
 
         public CmpFile(IntermediateNode rootnode, ILibFile additionalLibrary)
         {
             this.additionalLibrary = additionalLibrary;
 
             Models = new Dictionary<string, ModelFile>();
+            Cameras = new Dictionary<string, CmpCameraInfo>();
             Constructs = new ConstructCollection();
             Parts = new List<Part>();
             List<string> modelNames = new List<string>(); 
@@ -120,7 +109,7 @@ namespace LibreLancer.Utf.Cmp
                                             break;
                                     }
                                 }
-								Parts.Add(new Part(objectName, fileName, Models, Constructs));
+								Parts.Add(new Part(objectName, fileName, Models, Cameras, Constructs));
                             }
                             else throw new Exception("Invalid node in " + cmpndNode.Name + ": " + cmpndSubNode.Name);
                         }
@@ -129,14 +118,26 @@ namespace LibreLancer.Utf.Cmp
 						MaterialAnim = new MaterialAnimCollection((IntermediateNode)node);
                         break;
                     default:
-                        if (node.Name.EndsWith(".3db", StringComparison.OrdinalIgnoreCase))
+                        if(node is IntermediateNode)
                         {
-                            ModelFile m = new ModelFile(node as IntermediateNode, this);
-							m.Path = node.Name;
-                            Models.Add(node.Name, m);
-                            modelNames.Add(node.Name);
+                            var im = (IntermediateNode)node;
+                            if(im.Any(x => x.Name.Equals("vmeshpart",StringComparison.OrdinalIgnoreCase) ||
+                                x.Name.Equals("multilevel",StringComparison.OrdinalIgnoreCase)))
+                            {
+                                ModelFile m = new ModelFile(im, this);
+                                m.Path = node.Name;
+                                Models.Add(node.Name, m);
+                                modelNames.Add(node.Name);
+                                break;
+                            }
+                            else if (im.Any(x => x.Name.Equals("camera",StringComparison.OrdinalIgnoreCase)))
+                            {
+                                var cam = new CmpCameraInfo(im);
+                                Cameras.Add(im.Name, cam);
+                                break;
+                            }
                         }
-                        else FLLog.Error("Cmp", Path ?? "Utf" + ": Invalid Node in cmp root: " + node.Name);
+                        FLLog.Error("Cmp", Path ?? "Utf" + ": Invalid Node in cmp root: " + node.Name);
                         break;
                 }
             }
@@ -170,6 +171,7 @@ namespace LibreLancer.Utf.Cmp
 			float max = float.MinValue;
 			foreach (var part in Parts)
 			{
+                if (part.Camera != null) continue;
 				var r = part.Model.GetRadius();
 				float d = 0;
 				if(part.Construct != null)

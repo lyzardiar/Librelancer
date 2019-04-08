@@ -1,35 +1,19 @@
-﻿/* The contents of this file a
- * re subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is Starchart code (http://flapi.sourceforge.net/).
- * Data structure from Freelancer UTF Editor by Cannon & Adoxa, continuing the work of Colin Sanby and Mario 'HCl' Brito (http://the-starport.net)
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-
-using LibreLancer.Utf.Vms;
 using LibreLancer.Utf.Mat;
+using LibreLancer.Utf.Vms;
 
 namespace LibreLancer.Utf.Dfm
 {
-	/// <summary>
-	/// Represents a UTF Deformable File (.dfm)
-	/// </summary>
-	public class DfmFile : UtfFile, ILibFile, IDrawable
+    /// <summary>
+    /// Represents a UTF Deformable File (.dfm)
+    /// </summary>
+    public class DfmFile : UtfFile, ILibFile, IDrawable
 	{
 		private ILibFile additionalLibrary;
 
@@ -46,7 +30,7 @@ namespace LibreLancer.Utf.Dfm
 
 		public Dictionary<int, DfmPart> Parts { get; private set; }
 		public Dictionary<string, Bone> Bones { get; private set; }
-		public ConstructCollection Constructs { get; private set; }
+		public DfmConstructs Constructs { get; private set; }
 
 		public IEnumerable<DfmHardpoint> GetHardpoints()
 		{
@@ -64,7 +48,7 @@ namespace LibreLancer.Utf.Dfm
 
 			Bones = new Dictionary<string, Bone>();
 			Parts = new Dictionary<int, DfmPart>();
-			Constructs = new ConstructCollection();
+			Constructs = new DfmConstructs();
 
 			foreach (Node node in root)
 			{
@@ -157,7 +141,7 @@ namespace LibreLancer.Utf.Dfm
 								}
 							}
 
-							Parts.Add(index, new DfmPart(objectName, fileName, Bones, Constructs));
+							Parts.Add(index, new DfmPart(objectName, fileName, Bones, null));
 						}
 						else throw new Exception("Invalid node in " + node.Name + ": " + cmpndSubNode.Name);
 					}
@@ -172,17 +156,7 @@ namespace LibreLancer.Utf.Dfm
 					break;
 				}
 			}
-			foreach (var bone in Bones)
-			{
-				foreach (var construct in Constructs)
-				{
-					if (bone.Key.StartsWith(construct.ChildName, StringComparison.OrdinalIgnoreCase))
-					{
-						bone.Value.Construct = construct;
-						break;
-					}
-				}
-			}
+			
 		}
 
 		public void Initialize(ResourceManager cache)
@@ -235,14 +209,26 @@ namespace LibreLancer.Utf.Dfm
 			Levels[0].Update(camera, delta);
 		}
 
-		public void DrawBuffer(CommandBuffer buffer, Matrix4 world, ref Lighting light, Material overrrideMat = null)
+		public void DrawBuffer(CommandBuffer buffer, Matrix4 world, ref Lighting light, Material overrideMat = null)
 		{
-			Levels[0].DrawBuffer(buffer, world, light);		
+			Levels[0].DrawBuffer(buffer, world, light,overrideMat);		
 		}
 
+        //HACK: dfm can't have radius without skinning
+        float radius = -1;
 		public float GetRadius()
 		{
-			return 20000; //Wrong
-		}
+			if(radius == -1)
+            {
+                var msh = Levels[0];
+                float max = 0;
+                foreach (var p in msh.Points)
+                {
+                    max = Math.Max(max, p.Length);
+                }
+                radius = max;
+            }
+            return radius;
+        }
 	}
 }

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 namespace LibreLancer
 {
@@ -89,6 +78,11 @@ namespace LibreLancer
             {
                 this.e = e;
             }
+            public void setpos(float x, float y)
+            {
+                e.Positioning.X = x;
+                e.Positioning.Y = y;
+            }
             public void flyin(float start, float duration)
             {
                 e.Animation = new FlyInLeft(e.CalculatePosition(), start, duration) { From = -e.CalculateSize().X };
@@ -123,6 +117,8 @@ namespace LibreLancer
             if (Animation != null && Animation.Running)
                 Animation.Update(delta.TotalSeconds);
         }
+        public virtual void OnMouseDown() { }
+        public virtual void OnMouseUp() { }
         protected virtual void DrawInternal(TimeSpan delta) { }
         public virtual Vector2 CalculateSize() { return Vector2.Zero; }
 

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.IO;
 using System.Reflection;
@@ -36,16 +25,18 @@ namespace LibreLancer
 					prelude = "#version 150\n" + caps.GetDefines() + "\n#line 0\n";
 				FLLog.Debug ("Shader", "Compiling [ " + vs + " , " + fs + " ]");
                 sh = new ShaderVariables(
-					new Shader(prelude + Resources.LoadString("LibreLancer.Shaders." + vs), prelude + ProcessIncludes(Resources.LoadString("LibreLancer.Shaders." + fs)))
+					new Shader(
+                    prelude +"#define VERTEX_SHADER\n"+ ProcessIncludes(Resources.LoadString("LibreLancer.Shaders." + vs)), 
+                        prelude + "#define FRAGMENT_SHADER\n" + ProcessIncludes(Resources.LoadString("LibreLancer.Shaders." + fs)))
                 );
                 shaders.Add(k, sh);
 			}
             return sh;
 		}
         //includes in form '#pragma include (file.inc)'
+        static Regex findincludes = new Regex(@"^\s*#\s*pragma include\s+[<\(]([^>\)]*)[>\)]\s*", RegexOptions.Multiline | RegexOptions.Compiled);
         static string ProcessIncludes(string src)
 		{
-			Regex findincludes = new Regex(@"^\s*#\s*pragma include\s+[<\(]([^>\)]*)[>\)]\s*", RegexOptions.Multiline);
 			var m = findincludes.Match(src);
 			string newsrc = src;
 			while (m.Success)

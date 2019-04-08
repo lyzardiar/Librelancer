@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -84,12 +73,18 @@ namespace LibreLancer
             this.api = api;
             xml = XInterface.Load(src);
             Font = game.Fonts.GetSystemFont("Agency FB");
-            if(xml.ResourceFiles != null)
-            foreach (var file in xml.ResourceFiles)
-                game.ResourceManager.LoadResourceFile(game.GameData.ResolveDataPath(file.Substring(2)));
+            if (xml.ResourceFiles != null)
+                foreach (var file in xml.ResourceFiles)
+                    game.ResourceManager.LoadResourceFile(game.GameData.ResolveDataPath(file.Substring(2)));
             DoStyles(xml);
             LoadScene(xml.DefaultScene);
+            game.Mouse.MouseDown += Mouse_MouseDown;
+            game.Mouse.MouseUp += Mouse_MouseUp;
         }
+
+        void Mouse_MouseDown(MouseEventArgs e) { if(e.Buttons == MouseButtons.Left) foreach(var el in Elements) el.OnMouseDown(); }
+        void Mouse_MouseUp(MouseEventArgs e) { if(e.Buttons == MouseButtons.Left) foreach (var el in Elements) el.OnMouseUp(); }
+
         void DoStyles(XInterface x)
         {
             if (x.Styles != null)
@@ -126,6 +121,11 @@ namespace LibreLancer
                 {
                     Elements.Add(new XmlUIImage((XInt.Image)item, this));
                 }
+                else if (item is XInt.ServerList)
+                {
+                    var sl = (XInt.ServerList)item;
+                    Elements.Add(new XmlUIServerList(sl, styles.Where((x) => x.ID == sl.Style).First(), this));
+                }
                 else if (item is XInt.Panel)
                 {
                     var pnl = (XInt.Panel)item;
@@ -136,6 +136,7 @@ namespace LibreLancer
                     var cb = (XInt.ChatBox)item;
                     Elements.Add(new XmlChatBox(cb, styles.Where((x) => x.ID == cb.Style).First(), this));
                 }
+
             }
         }
         void SwapIn(string id)
@@ -159,7 +160,7 @@ namespace LibreLancer
             if (!sounds.TryGetValue(name, out dat))
             {
                 dat = Game.Audio.AllocateData();
-                dat.LoadFile(Game.GameData.GetMusicPath(name));
+                dat.LoadFile(Game.GameData.GetAudioPath(name));
                 sounds.Add(name, dat);
             }
             Game.Audio.PlaySound(dat);
@@ -202,6 +203,7 @@ namespace LibreLancer
                 if (dn["anchor"] != null) btn.Anchor = Enum.Parse(typeof(XInt.Anchor), dn.anchor);
                 if (dn["height"] != null) style.Size.HeightText = dn.height;
                 if (dn["ratio"] != null) style.Size.Ratio = (float)dn.ratio;
+                if (dn["scissor"] != null) style.Scissor = (bool)dn.scissor;
                 if (dn["onclick"] != null) btn.OnClick = dn.onclick;
                 if (dn["background"] != null) style.Background = new XInt.StyleBackground() { ColorText = dn.background };
                 style.HoverStyle = dn.hoverstyle;

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,13 +10,46 @@ using BM = BulletSharp.Math;
 namespace LibreLancer.Physics.Sur
 {
 	//TODO: Sur reader is VERY incomplete & undocumented
-	class SurFile
+	public class SurFile
 	{
 		const string VERS_TAG = "vers";
 		Dictionary<uint, Surface> surfaces = new Dictionary<uint, Surface>();
 		Dictionary<uint, ConvexTriangleMeshShape[]> shapes = new Dictionary<uint, ConvexTriangleMeshShape[]>();
-		//I'm assuming this gives me some sort of workable mesh
-		public ConvexTriangleMeshShape[] GetShape(uint meshId)
+        
+        public IEnumerable<uint> MeshIds => surfaces.Keys;
+        public List<uint> HardpointIds = new List<uint>();
+
+        //For editor display. HACK: Horribly inefficient
+        public ConvexMesh[] GetMesh(uint meshId, bool hardpoint)
+        {
+            List<ConvexMesh> hull = new List<ConvexMesh>();
+            foreach (var surface in surfaces.Values)
+            {
+                for (int i = 0; i < surface.Groups.Length; i++)
+                {
+                    var th = surface.Groups[i];
+                    if (th.MeshID != meshId)
+                        continue;
+                    var verts = new List<Vector3>();
+                    foreach (var v in surface.Vertices)
+                        verts.Add(v.Point.Cast());
+                    var indices = new List<int>();
+                    if (th.VertexArrayOffset != 0)
+                        throw new Exception("tgroupheader vertexarrayoffset wrong");
+                    foreach (var tri in th.Triangles)
+                    {
+                        indices.Add(tri.Vertices[0].Vertex);
+                        indices.Add(tri.Vertices[1].Vertex);
+                        indices.Add(tri.Vertices[2].Vertex);
+                    }
+                    hull.Add(new ConvexMesh() { Indices = indices.ToArray(), Vertices = verts.ToArray(), ParentCrc = surface.Crc });
+                }
+            }
+            return hull.ToArray();
+        }
+
+        //I'm assuming this gives me some sort of workable mesh
+        public ConvexTriangleMeshShape[] GetShape(uint meshId)
 		{
 			if (!shapes.ContainsKey(meshId))
 			{
@@ -50,7 +72,6 @@ namespace LibreLancer.Physics.Sur
                         indices.Add(tri.Vertices[1].Vertex);
                         indices.Add(tri.Vertices[2].Vertex);
 					}
-                    //StridingMeshInterface;
                     hull.Add(new ConvexTriangleMeshShape(new TriangleIndexVertexArray(indices, verts)));
 				}
 				shapes.Add(meshId, hull.ToArray());
@@ -77,7 +98,7 @@ namespace LibreLancer.Physics.Sur
 						var tag = reader.ReadTag ();
 						if (tag == "surf") {
 							uint size = reader.ReadUInt32 (); //TODO: SUR - What is this?
-							var surf = new Surface(reader);
+                            var surf = new Surface(reader, meshid);
 							surfaces.Add(meshid, surf);
 						} else if (tag == "exts") {
 							//TODO: SUR - What are exts used for?
@@ -98,8 +119,7 @@ namespace LibreLancer.Physics.Sur
 							//TODO: SUR - hpid. What does this do?
 							uint count2 = reader.ReadUInt32 ();
 							while (count2-- > 0) {
-								//uint mesh2 = reader.ReadUInt32 ();
-								reader.BaseStream.Seek(sizeof(uint), SeekOrigin.Current);
+                                HardpointIds.Add(reader.ReadUInt32());
 							}
 						}
 					}

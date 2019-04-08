@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 
 namespace LibreLancer
@@ -34,7 +23,8 @@ namespace LibreLancer
 		public const int GL_TEXTURE_MIN_FILTER = 0x2801;
 		public const int GL_TEXTURE_MAG_FILTER = 0x2800;
 		public const int GL_TEXTURE_BORDER_COLOR = 0x1004;
-		public const int GL_LINEAR = 0x2601;
+        public const int GL_TEXTURE_MAX_LEVEL = 0x813D;
+        public const int GL_LINEAR = 0x2601;
 		public const int GL_LINEAR_MIPMAP_NEAREST = 0x2701;
 		public const int GL_LINEAR_MIPMAP_LINEAR = 0x2703;
 		public const int GL_NEAREST = 0x2600;

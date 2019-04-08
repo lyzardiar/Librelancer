@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -47,6 +36,8 @@ namespace LancerEdit
             public List<MaterialName> Materials = new List<MaterialName>();
         }
         List<TextBuffer> nameBuffers = new List<TextBuffer>();
+        TextBuffer modelNameBuffer = new TextBuffer(72);
+        string modelNameDefault;
         class MaterialName
         {
             public ColladaGeometry Geometry;
@@ -61,6 +52,8 @@ namespace LancerEdit
             foreach (var obj in output)
                 DoMats(obj);
             Title = string.Format("Collada Importer ({0})##{1}", fname,Unique);
+            modelNameDefault = Path.GetFileNameWithoutExtension(fname);
+            modelNameBuffer.SetText(modelNameDefault);
             this.win = win;
         }
         void DoMats(OutModel mdl)
@@ -163,9 +156,11 @@ namespace LancerEdit
             //Actual stuff
             if (output.Count == 1)
             {
+                var modelName = modelNameBuffer.GetText();
+                if (string.IsNullOrEmpty(modelName)) modelName = modelNameDefault;
                 if (output[0].Children.Count == 0)
                 {
-                    Export3DB(utf.Root, output[0]);
+                    Export3DB(modelName, utf.Root, output[0]);
                 } 
                 else 
                 {
@@ -174,7 +169,7 @@ namespace LancerEdit
                     utf.Root.Children.Add(vmslib);
                     var cmpnd = new LUtfNode() { Name = "Cmpnd", Parent = utf.Root, Children = new List<LUtfNode>() };
                     utf.Root.Children.Add(cmpnd);
-                    ExportModels(utf.Root, suffix,vmslib, output[0]);
+                    ExportModels(modelName, utf.Root, suffix,vmslib, output[0]);
                     int cmpndIndex = 1;
                     FixConstructor fix = new FixConstructor(); 
                     cmpnd.Children.Add(CmpndNode(cmpnd, "Root", output[0].Name + suffix, "Root", 0));
@@ -220,46 +215,6 @@ namespace LancerEdit
                 ProcessConstruct(mdl.Name, child, cmpnd, fix, suffix, ref index);
 
         }
-        class FixConstructor
-        {
-            MemoryStream stream = new MemoryStream();
-            BinaryWriter writer;
-            public FixConstructor()
-            {
-                writer = new BinaryWriter(stream);
-            }
-            public void Add(string parentName, string objectName, Matrix4 transform)
-            {
-                var pbytes = Encoding.ASCII.GetBytes(parentName);
-                writer.Write(pbytes);
-                for (int i = 0; i < (64 - pbytes.Length); i++) {
-                    writer.Write((byte)0);
-                }
-                var cbytes = Encoding.ASCII.GetBytes(objectName);
-                writer.Write(cbytes);
-                for (int i = 0; i < (64 - cbytes.Length); i++) {
-                    writer.Write((byte)0);
-                }
-                var origin = transform.ExtractTranslation();
-                writer.Write(origin.X);
-                writer.Write(origin.Y);
-                writer.Write(origin.Z);
-                var rotate = Matrix4.CreateFromQuaternion(transform.ExtractRotation());
-                writer.Write(rotate.M11);
-                writer.Write(rotate.M21);
-                writer.Write(rotate.M31);
-                writer.Write(rotate.M12);
-                writer.Write(rotate.M22);
-                writer.Write(rotate.M32);
-                writer.Write(rotate.M13);
-                writer.Write(rotate.M23);
-                writer.Write(rotate.M33);
-            }
-            public byte[] GetData()
-            {
-                return stream.ToArray();
-            }
-        }
         LUtfNode CmpndNode(LUtfNode cmpnd, string name, string filename, string objname, int index)
         {
             var node = new LUtfNode() { Parent = cmpnd, Name = name, Children = new List<LUtfNode>() };
@@ -283,14 +238,14 @@ namespace LancerEdit
             });
             return node;
         }
-        void ExportModels(LUtfNode root, string suffix,LUtfNode vms, OutModel model)
+        void ExportModels(string mdlName, LUtfNode root, string suffix,LUtfNode vms, OutModel model)
         {
             var modelNode = new LUtfNode() { Parent = root, Name = model.Name + suffix };
             modelNode.Children = new List<LUtfNode>();
             root.Children.Add(modelNode);
-            Export3DB(modelNode, model, vms);
+            Export3DB(mdlName, modelNode, model, vms);
             foreach (var child in model.Children)
-                ExportModels(root, suffix,vms, child);
+                ExportModels(mdlName, root, suffix, vms, child);
         }
         static readonly float[][] matColors =  {
             new float[]{ 1, 0, 0 },
@@ -329,12 +284,13 @@ namespace LancerEdit
             foreach (var child in mdl.Children)
                 IterateMaterials(materials, child);
         }
-        static void Export3DB(LUtfNode node3db, OutModel mdl, LUtfNode vmeshlibrary = null)
+
+        static void Export3DB(string mdlName, LUtfNode node3db, OutModel mdl, LUtfNode vmeshlibrary = null)
         {
             var vms = vmeshlibrary ?? new LUtfNode() { Name = "VMeshLibrary", Parent = node3db, Children = new List<LUtfNode>() };
             for (int i = 0; i < mdl.LODs.Count; i++)
             {
-                var n = new LUtfNode() { Name = string.Format("{0}.level{1}.vms", mdl.Name, i), Parent = vms };
+                var n = new LUtfNode() { Name = string.Format("{0}-{1}.lod{2}.{3}.vms", mdlName, mdl.Name, i, (int)mdl.LODs[i].Geometry.FVF), Parent = vms };
                 n.Children = new List<LUtfNode>();
                 n.Children.Add(new LUtfNode() { Name = "VMeshData", Parent = n, Data = mdl.LODs[i].Geometry.VMeshData() });
                 vms.Children.Add(n);
@@ -346,7 +302,6 @@ namespace LancerEdit
                 var multilevel = new LUtfNode() { Name = "MultiLevel", Parent = node3db };
                 multilevel.Children = new List<LUtfNode>();
                 var switch2 = new LUtfNode() { Name = "Switch2", Parent = multilevel };
-                switch2.Data = UnsafeHelpers.CastArray(new float[] { 0, 4000});
                 multilevel.Children.Add(switch2);
                 for (int i = 0; i < mdl.LODs.Count; i++)
                 {
@@ -357,10 +312,21 @@ namespace LancerEdit
                     {
                         Name = "VMeshRef",
                         Parent = n.Children[0],
-                        Data = mdl.LODs[i].Geometry.VMeshRef(string.Format("{0}.level{1}.vms", mdl.Name, i))
+                        Data = mdl.LODs[i].Geometry.VMeshRef(string.Format("{0}-{1}.lod{2}.{3}.vms", mdlName, mdl.Name, i, (int)mdl.LODs[i].Geometry.FVF))
                     });
                     multilevel.Children.Add(n);
                 }
+                //Generate Switch2: TODO - Be more intelligent about this
+                var mlfloats = new float[multilevel.Children.Count];
+                mlfloats[0] = 0;
+                float cutOff = 2250;
+                for (int i = 1; i < mlfloats.Length - 1; i++)
+                {
+                    mlfloats[i] = cutOff;
+                    cutOff *= 2;
+                }
+                mlfloats[mlfloats.Length - 1] = 1000000;
+                switch2.Data = UnsafeHelpers.CastArray(mlfloats);
                 node3db.Children.Add(multilevel);
             }
             else
@@ -371,7 +337,7 @@ namespace LancerEdit
                 {
                     Name = "VMeshRef",
                     Parent = part,
-                    Data = mdl.LODs[0].Geometry.VMeshRef(string.Format("{0}.level0.vms", mdl.Name))
+                    Data = mdl.LODs[0].Geometry.VMeshRef(string.Format("{0}-{1}.lod0.{2}.vms", mdlName, mdl.Name, (int)mdl.LODs[0].Geometry.FVF))
                 });
                 node3db.Children.Add(part);
             }
@@ -418,7 +384,7 @@ namespace LancerEdit
             var totalH = ImGui.GetWindowHeight();
             ImGuiExt.SplitterV(2f, ref fl_h1, ref fl_h2, 8, 8, -1);
             fl_h1 = totalH - fl_h2 - 6f;
-            ImGui.BeginChild("1", new Vector2(-1, fl_h1), false, WindowFlags.Default);
+            ImGui.BeginChild("1", new Vector2(-1, fl_h1), false, ImGuiWindowFlags.None);
             ImGui.Separator();
             //3DB list
             if (ImGui.TreeNodeEx("Model/"))
@@ -430,13 +396,17 @@ namespace LancerEdit
                 }
             }
             ImGui.EndChild();
-            ImGui.BeginChild("2", new Vector2(-1, fl_h2), false, WindowFlags.Default);
+            ImGui.BeginChild("2", new Vector2(-1, fl_h2), false, ImGuiWindowFlags.None);
             if (ImGuiExt.ToggleButton("Options", curTab == 0)) curTab = 0;
             ImGui.SameLine();
             if (ImGuiExt.ToggleButton("Materials", curTab == 1)) curTab = 1;
             ImGui.Separator();
             switch(curTab) {
                 case 0: //OPTIONS
+                    ImGui.AlignTextToFramePadding();
+                    ImGui.Text("Model Name:");
+                    ImGui.SameLine();
+                    modelNameBuffer.InputText("##mdlname", ImGuiInputTextFlags.None);
                     ImGui.Checkbox("Generate Materials", ref generateMaterials);
                     break;
                 case 1: //MATERIALS
@@ -456,18 +426,18 @@ namespace LancerEdit
             foreach(var name in selected.Materials) {
                 ImGui.Text(string.Format("{0} ({1})", name.Geometry.Name, name.Drawcall));
                 ImGui.SameLine();
-                ImGui.InputText("##" + i++, name.Name.Pointer, (uint)name.Name.Size, InputTextFlags.Default, name.Name.Callback);
+                name.Name.InputText("##" + i++, ImGuiInputTextFlags.None);
             }
         }
         OutModel selected;
         void FLTree(OutModel mdl, ref int i)
         {
-            var flags = TreeNodeFlags.OpenOnDoubleClick |
-                                         TreeNodeFlags.DefaultOpen |
-                                         TreeNodeFlags.OpenOnArrow;
-            if (mdl == selected) flags |= TreeNodeFlags.Selected;
+            var flags = ImGuiTreeNodeFlags.OpenOnDoubleClick |
+                                         ImGuiTreeNodeFlags.DefaultOpen |
+                                         ImGuiTreeNodeFlags.OpenOnArrow;
+            if (mdl == selected) flags |= ImGuiTreeNodeFlags.Selected;
             var open = ImGui.TreeNodeEx(ImGuiExt.Pad(mdl.Name + "##" + i++), flags);
-            if(ImGuiNative.igIsItemClicked(0)) {
+            if(ImGui.IsItemClicked(0)) {
                 selected = mdl;
             }
             ImGui.SameLine();
@@ -490,6 +460,7 @@ namespace LancerEdit
         public override void Dispose()
         {
             foreach (var buf in nameBuffers) buf.Dispose();
+            modelNameBuffer.Dispose();
         }
     }
 }

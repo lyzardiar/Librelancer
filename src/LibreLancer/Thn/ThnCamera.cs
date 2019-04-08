@@ -1,24 +1,13 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2017
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 namespace LibreLancer
 {
 	public class ThnCamera : ICamera
 	{
-		long frameNo = 0;
+		public long frameNo = 0;
 
 		public ThnCameraTransform Transform = new ThnCameraTransform();
 
@@ -39,10 +28,10 @@ namespace LibreLancer
 			var fovy = Transform.FovH * Transform.AspectRatio;
 			//TODO: Tweak clip plane some more - isn't quite right
 			//NOTE: near clip plane can't be too small or it causes z-fighting
-			projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(fovy), Transform.AspectRatio, 2.5f, 10000000f);
+			projection = Matrix4.CreatePerspectiveFieldOfView(MathHelper.DegreesToRadians(fovy), Transform.AspectRatio, Transform.Znear, Transform.Zfar);
 			Vector3 originalTarget = Vector3.Forward;
 			Vector3 rotatedTarget = Transform.Orientation.Transform(originalTarget);
-			Vector3 target = Transform.LookAt == null ? Position + rotatedTarget : Transform.LookAt.Transform.ExtractTranslation();
+            Vector3 target = Transform.LookAt == null ? Position + rotatedTarget : Transform.LookAt();
 			Vector3 upVector = Transform.Orientation.Transform(Vector3.Up);
 			view = Matrix4.LookAt(Position, target, upVector);
 			frameNo++;

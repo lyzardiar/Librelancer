@@ -620,6 +620,39 @@ namespace LibreLancer
             return result;
         }
 
+        static float EpsilonCheck(double value)
+        {
+            if (Math.Abs(value) < 1e-12)
+                return 0;
+            return (float)value;
+        }
+
+        public static Matrix4 CreateFromEulerAngles(double x, double y, double z)
+        {
+            var mat = Matrix4.Identity;
+
+            double cp = Math.Cos(x);
+            double sp = Math.Sin(x);
+
+            double cy = Math.Cos(y);
+            double sy = Math.Sin(y);
+
+            double cr = Math.Cos(z);
+            double sr = Math.Sin(z);
+
+            mat.M11 = EpsilonCheck(cy * cr);
+            mat.M12 = EpsilonCheck(sp * sy * cr + cp * -sr);
+            mat.M13 = EpsilonCheck(cp * sy * cr + -sp * -sr);
+            mat.M21 = EpsilonCheck(cy * sr);
+            mat.M22 = EpsilonCheck(sp * sy * sr + cp * cr);
+            mat.M23 = EpsilonCheck(cp * sy * sr + -sp * cr);
+            mat.M31 = EpsilonCheck(-sy);
+            mat.M32 = EpsilonCheck(sp * cy);
+            mat.M33 = EpsilonCheck(cp * cy);
+
+
+            return mat;
+        }
         #endregion
 
         #region CreateRotation[XYZ]

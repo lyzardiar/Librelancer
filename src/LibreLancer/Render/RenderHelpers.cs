@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using LibreLancer.GameData;
 namespace LibreLancer
@@ -32,9 +21,25 @@ namespace LibreLancer
 		}
 		public static Lighting ApplyLights(SystemLighting src, int lightGroup, Vector3 c, float r, NebulaRenderer nebula, bool lambient = true, bool ldynamic = true, bool nofog = false)
 		{
+            if (!ldynamic && !lambient)
+                return Lighting.Empty;
+            ldynamic = true;
             var lights = Lighting.Create();
-			lights.Ambient = lambient ? src.Ambient : Color4.Black;
-			lights.NumberOfTilesX = src.NumberOfTilesX;
+            lights.Ambient = lambient ? new Color3f(src.Ambient.R, src.Ambient.G, src.Ambient.B) : Color3f.Black;
+            if (lambient)
+            {
+                for (int i = 0; i < src.Lights.Count; i++)
+                {
+                    if (src.Lights[i].LightGroup != lightGroup)
+                        continue;
+                    if (!src.Lights[i].Active)
+                        continue;
+                    lights.Ambient.R += src.Lights[i].Light.Ambient.R;
+                    lights.Ambient.G += src.Lights[i].Light.Ambient.G;
+                    lights.Ambient.B += src.Lights[i].Light.Ambient.B;
+                }
+            }
+            lights.NumberOfTilesX = src.NumberOfTilesX;
 			if (nofog)
 			{
 				lights.FogMode = FogModes.None;
@@ -42,9 +47,11 @@ namespace LibreLancer
 			else
 			{
 				lights.FogMode = src.FogMode;
-				lights.FogDensity = src.FogDensity;
-				lights.FogColor = src.FogColor;
-				lights.FogRange = src.FogRange;
+                lights.FogColor = new Color3f(src.FogColor.R, src.FogColor.G, src.FogColor.B);
+                if (src.FogMode == FogModes.Linear)
+                    lights.FogRange = src.FogRange;
+                else
+                    lights.FogRange = new Vector2(src.FogDensity, 0);
 			}
             int lc = 0;
 			if (ldynamic)
@@ -52,6 +59,7 @@ namespace LibreLancer
                 lights.Lights.SourceLighting = src;
 				for (int i = 0; i < src.Lights.Count; i++)
 				{
+                    
 					if (src.Lights[i].LightGroup != lightGroup)
 						continue;
 					if (!src.Lights[i].Active) 
@@ -77,12 +85,12 @@ namespace LibreLancer
 				Color4 fogcolor;
 				RenderLight? lightning;
 				nebula.GetLighting(out fogenabled, out ambient, out fogrange, out fogcolor, out lightning);
-				if (ambient != null)
-					lights.Ambient = ambient.Value;
+                if (ambient != null)
+                    lights.Ambient = new Color3f(ambient.Value.R, ambient.Value.G, ambient.Value.B);
 				if (fogenabled)
 				{
 					lights.FogMode = FogModes.Linear;
-					lights.FogColor = fogcolor;
+                    lights.FogColor = new Color3f(fogcolor.R, fogcolor.G, fogcolor.B);
 					lights.FogRange = fogrange;
 				}
 				if (lightning != null && src.NumberOfTilesX == -1)

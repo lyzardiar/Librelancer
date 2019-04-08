@@ -1,28 +1,11 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is FLApi code (http://flapi.sourceforge.net/).
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2011, 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.IO;
 using System.Text;
-
-
-using LibreLancer.Utf.Anm;
 
 namespace LibreLancer.Utf
 {
@@ -31,13 +14,21 @@ namespace LibreLancer.Utf
         const int STR_LENGTH = 64;
         protected ConstructCollection constructs;
 
-        public string ParentName { get; private set; }
-        public string ChildName { get; private set; }
+        public string ParentName { get; set; }
+        public string ChildName { get; set; }
         public Vector3 Origin { get; set; }
         public Matrix4 Rotation { get; set; }
 
         public abstract Matrix4 Transform { get; }
 		bool parentExists = true;
+
+        public Matrix4? OverrideTransform;
+
+        protected AbstractConstruct(ConstructCollection constructs)
+        {
+            this.constructs = constructs;
+        }
+
         protected AbstractConstruct(BinaryReader reader, ConstructCollection constructs)
         {
             if (reader == null) throw new ArgumentNullException("reader");
@@ -65,12 +56,18 @@ namespace LibreLancer.Utf
 			Origin = cloneFrom.Origin;
 			Rotation = cloneFrom.Rotation;
 		}
-
+        public void ClearParent()
+        {
+            parent = null;
+            parentExists = true;
+        }
 		public abstract AbstractConstruct Clone(ConstructCollection newcol);
 
 		AbstractConstruct parent;
         protected Matrix4 internalGetTransform(Matrix4 matrix)
         {
+            if (OverrideTransform != null)
+                matrix = OverrideTransform.Value;
 			if (parentExists)
 			{
 				if(parent == null)
@@ -83,7 +80,7 @@ namespace LibreLancer.Utf
 
             return matrix;
         }
-
+        public abstract void Reset();
         public abstract void Update(float distance);
     }
 }

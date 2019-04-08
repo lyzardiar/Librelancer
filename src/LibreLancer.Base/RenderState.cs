@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 
@@ -144,8 +133,10 @@ namespace LibreLancer
 				cullDirty = true;
 			}
 		}
+        public bool ScissorEnabled { get => scissorEnabled; set => scissorEnabled = value; }
+        public Rectangle ScissorRectangle { get => scissorRect; set => scissorRect = value; }
 
-		CullFaces requestedCull = CullFaces.Back;
+        CullFaces requestedCull = CullFaces.Back;
 		CullFaces cullFace = CullFaces.Back;
 		public CullFaces CullFace
 		{
@@ -184,6 +175,14 @@ namespace LibreLancer
 		bool depthwrite = true;
 		bool depthwritedirty = false;
         public uint NullVAO;
+
+        bool scissorEnabled = false;
+        bool currentScissorEnabled = false;
+        Rectangle scissorRect;
+        Rectangle currentScissorRect;
+        bool scissorVpChanged;
+        int vpHeight = 0;
+
 		public RenderState ()
 		{
 			GL.ClearColor (0f, 0f, 0f, 1f);
@@ -210,6 +209,8 @@ namespace LibreLancer
 		public void SetViewport(int x, int y, int w, int h)
 		{
 			GL.Viewport(x,y,w,h);
+            scissorVpChanged = true;
+            vpHeight = h;
 		}
 
 		public void ClearAll()
@@ -220,7 +221,8 @@ namespace LibreLancer
 
 		public void ClearDepth()
 		{
-			GL.Clear (GL.GL_DEPTH_BUFFER_BIT);
+            Apply();
+            GL.Clear (GL.GL_DEPTH_BUFFER_BIT);
 		}
 		public void Apply()
 		{
@@ -294,7 +296,20 @@ namespace LibreLancer
 				GL.DepthMask(depthwrite);
 				depthwritedirty = false;
 			}
-		}
+            if(scissorEnabled != currentScissorEnabled)
+            {
+                if (scissorEnabled) GL.Enable(GL.GL_SCISSOR_TEST);
+                else GL.Disable(GL.GL_SCISSOR_TEST);
+                currentScissorEnabled = scissorEnabled;
+            }
+            if(scissorEnabled & (scissorVpChanged || currentScissorRect != scissorRect))
+            {
+                currentScissorRect = scissorRect;
+                scissorVpChanged = false;
+                GL.Scissor(scissorRect.X, vpHeight - scissorRect.Y - scissorRect.Height, scissorRect.Width, scissorRect.Height);
+            }
+
+        }
 	}
 }
 

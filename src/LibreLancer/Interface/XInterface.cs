@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -56,6 +45,8 @@ namespace LibreLancer
         {
             [XmlAttribute("id")]
             public string ID { get; set; }
+            [XmlAttribute("scissor")]
+            public bool Scissor { get; set; }
             [XmlElement("Model")]
             public Model[] Models { get; set; }
             [XmlElement("Size")]
@@ -135,6 +126,13 @@ namespace LibreLancer
                     return color.Value;
                 }
             }
+        }
+        public enum Align
+        {
+            [XmlEnum("default")]
+            Default,
+            [XmlEnum("baseline")]
+            Baseline
         }
         public class StyleText
         {
@@ -225,6 +223,12 @@ namespace LibreLancer
 
             [XmlAttribute("id")]
             public string ID { get; set; }
+
+            [XmlAttribute("lines")]
+            public int Lines { get; set; }
+
+            [XmlAttribute("align")]
+            public Align Align { get; set; }
         }
       
         public class StyleSize
@@ -296,6 +300,7 @@ namespace LibreLancer
 
             [XmlElement("Button", Type = typeof(XInt.Button))]
             [XmlElement("Panel", Type = typeof(XInt.Panel))]
+            [XmlElement("ServerList", Type = typeof(XInt.ServerList))]
             [XmlElement("Image", Type = typeof(XInt.Image))]
             [XmlElement("ChatBox", Type = typeof(XInt.ChatBox))]
             public object[] Items;
@@ -316,7 +321,7 @@ namespace LibreLancer
                     if (string.IsNullOrEmpty(XText)) return 0;
                     if (x == null) x = Parser.Percentage(XText);
                     return x.Value;
-                }
+                } set { x = value; }
             }
             [XmlAttribute("y")]
             public string YText { get; set; }
@@ -329,7 +334,7 @@ namespace LibreLancer
                     if (string.IsNullOrEmpty(YText)) return 0;
                     if (y == null) y = Parser.Percentage(YText);
                     return y.Value;
-                }
+                } set { y = value; }
             }
             [XmlAttribute("aspect")]
             public string Aspect { get; set; }
@@ -352,7 +357,9 @@ namespace LibreLancer
             [XmlAttribute("style")]
             public string Style { get; set; }
         }
-
+        public class ServerList : Panel
+        {
+        }
         public class ChatBox : Positionable
         {
             [XmlAttribute("style")]

@@ -1,21 +1,7 @@
-﻿/* The contents of this file a
- * re subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is Starchart code (http://flapi.sourceforge.net/).
- * Data structure from Freelancer UTF Editor by Cannon & Adoxa, continuing the work of Colin Sanby and Mario 'HCl' Brito (http://the-starport.net)
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
 using System.Collections.Generic;
@@ -25,7 +11,7 @@ namespace LibreLancer.Utf.Dfm
 {
 	public class Bone
 	{
-		public AbstractConstruct Construct { get; set; }
+		//public AbstractConstruct Construct { get; set; }
 		public Matrix4 BoneToRoot { get; private set; }
 		public byte LodBits { get; private set; }
 		public List<HardpointDefinition> Hardpoints { get; private set; }
@@ -42,7 +28,7 @@ namespace LibreLancer.Utf.Dfm
 				switch (subNode.Name.ToLowerInvariant())
 				{
 				case "bone to root":
-					BoneToRoot = (subNode as LeafNode).MatrixData4x3.Value;
+                        BoneToRoot = (subNode as LeafNode).MatrixData4x3.Value;
 					break;
 				case "lod bits":
 					LodBits = (subNode as LeafNode).ByteArrayData[0];

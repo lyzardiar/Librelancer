@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using LibreLancer.Utf.Ale;
 namespace LibreLancer.Fx
@@ -57,10 +46,14 @@ namespace LibreLancer.Fx
 			float s_min = MathHelper.DegreesToRadians(MinSpread.GetValue(sparam, 0));
 			float s_max = MathHelper.DegreesToRadians(MaxSpread.GetValue(sparam, 0));
 
-			var direction = RandomInCone(instance.Random, s_min, s_max);
-			var tr = Transform.GetMatrix(sparam, globaltime);
-			var n = (tr * new Vector4(direction.Normalized(), 0)).Xyz.Normalized();
-			var p = n * radius;
+			var n = RandomInCone(instance.Random, s_min, s_max);
+            Vector3 translate;
+            Quaternion rotate;
+            if (DoTransform(reference, sparam, globaltime, out translate, out rotate))
+            {
+                n = rotate * n;
+            }
+            var p = n * radius + translate;
 			n *= Pressure.GetValue(sparam, 0);
 			instance.Particles[idx].Position = p;
 			instance.Particles[idx].Normal = n;

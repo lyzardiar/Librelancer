@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -21,6 +10,7 @@ namespace LibreLancer
     public class XmlUIPanel : XmlUIElement
     {
         public XInt.Style Style;
+        public bool Enabled = true;
         List<ModelInfo> models = new List<ModelInfo>();
 
         class ModelInfo
@@ -60,14 +50,17 @@ namespace LibreLancer
             {
                 return p.Texts.Where((x) => x.ID == id).First().Lua;
             }
+            public void disable() => p.Enabled = false;
+            public void enable() => p.Enabled = true;
             public void modelindex(int index)
             {
                 p.modelIndex = index;
             }
         }
-        public XmlUIPanel(XInt.Style style, XmlUIManager manager) : base(manager)
+
+        public XmlUIPanel(XInt.Style style, XmlUIManager manager, bool setLua = true) : base(manager)
         {
-            Lua = new PanelAPI(this);
+            if(setLua) Lua = new PanelAPI(this);
             Style = style;
             if (style.Models != null)
             {
@@ -129,6 +122,11 @@ namespace LibreLancer
                 py = (int)Animation.CurrentPosition.Y;
             }
             var r = new Rectangle(px, py, (int)w, (int)h);
+            if(Style.Scissor)
+            {
+                Manager.Game.RenderState.ScissorEnabled = true;
+                Manager.Game.RenderState.ScissorRectangle = r;
+            }
             //Background (mostly for authoring purposes)
             if (Style.Background != null || Style.Border != null)
             {
@@ -171,6 +169,10 @@ namespace LibreLancer
                 foreach (var t in Texts)
                     t.Draw(Manager, r);
                 Manager.Game.Renderer2D.Finish();
+            }
+            if(Style.Scissor)
+            {
+                Manager.Game.RenderState.ScissorEnabled = false;
             }
         }
     }

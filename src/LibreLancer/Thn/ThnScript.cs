@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using LibreLancer.Thorn;
@@ -31,7 +20,7 @@ namespace LibreLancer
 			ThnEnv.Add("REFERENCE", ThnObjectFlags.Reference);
 			ThnEnv.Add("SPATIAL", ThnObjectFlags.Spatial);
 			//EventFlags
-			ThnEnv.Add("LOOP", EventFlags.Loop);
+			ThnEnv.Add("LOOP", SoundFlags.Loop);
 			//LightTypes
 			ThnEnv.Add("L_DIRECT", LightTypes.Direct);
 			ThnEnv.Add("L_POINT", LightTypes.Point);
@@ -76,6 +65,7 @@ namespace LibreLancer
 			ThnEnv.Add("START_CAMERA_PROP_ANIM", EventTypes.StartCameraPropAnim);
 			ThnEnv.Add("START_SOUND", EventTypes.StartSound);
 			ThnEnv.Add("START_AUDIO_PROP_ANIM", EventTypes.StartAudioPropAnim);
+            ThnEnv.Add("START_FLR_HEIGHT_ANIM", EventTypes.StartFloorHeightAnim);
 			ThnEnv.Add("CONNECT_HARDPOINTS", EventTypes.ConnectHardpoints);
 			//Axis
 			ThnEnv.Add("X_AXIS", Vector3.UnitX);
@@ -119,12 +109,12 @@ namespace LibreLancer
 				var e = GetEvent(ev);
 				Events.Add(e);
 			}
-			Events.Sort((x, y) => x.Time.CompareTo(y.Time));
+			Events.Sort((x, y) => x.EventTime.CompareTo(y.EventTime));
 		}
 		ThnEvent GetEvent(LuaTable table)
 		{
 			var e = new ThnEvent();
-			e.Time = (float)table[0];
+			e.EventTime = (float)table[0];
 			e.Type = ThnEnum.Check<EventTypes>(table[1]);
 			e.Targets = (LuaTable)table[2];
 			if (table.Capacity >= 4)
@@ -144,7 +134,7 @@ namespace LibreLancer
 				{
 					e.Duration = (float)tmp;
 				}
-			}
+            }
 			return e;
 		}
 		//Flags are stored differently internally between Freelancer and Librelancer
@@ -250,8 +240,20 @@ namespace LibreLancer
 					e.NoFog = ThnEnum.Check<bool>(o);
 				}
 			}
-
-			if (table.TryGetValue("spatialprops", out o))
+            if(table.TryGetValue("audioprops", out o))
+            {
+                var aprops = (LuaTable)o;
+                e.AudioProps = new ThnAudioProps();
+                if (aprops.TryGetValue("rmix", out o)) e.AudioProps.Rmix = (float)o;
+                if (aprops.TryGetValue("ain", out o)) e.AudioProps.Ain = (float)o;
+                if (aprops.TryGetValue("dmax", out o)) e.AudioProps.Dmax = (float)o;
+                if (aprops.TryGetValue("atout", out o)) e.AudioProps.Atout = (float)o;
+                if (aprops.TryGetValue("pan", out o)) e.AudioProps.Pan = (float)o;
+                if (aprops.TryGetValue("dmin", out o)) e.AudioProps.Dmin = (float)o;
+                if (aprops.TryGetValue("aout", out o)) e.AudioProps.Aout = (float)o;
+                if (aprops.TryGetValue("attenuation", out o)) e.AudioProps.Attenuation = (float)o;
+            }
+            if (table.TryGetValue("spatialprops", out o))
 			{
 				var spatialprops = (LuaTable)o;
 				if (spatialprops.TryGetVector3("pos", out tmp))
@@ -304,7 +306,9 @@ namespace LibreLancer
 				else
 					throw new Exception("Light without type");
 				if (lightprops.TryGetVector3("diffuse", out tmp))
-					r.Color = new Color4(tmp.X, tmp.Y, tmp.Z, 1);
+					r.Color = new Color3f(tmp.X, tmp.Y, tmp.Z);
+                if (lightprops.TryGetVector3("ambient", out tmp))
+                    r.Ambient = new Color3f(tmp.X, tmp.Y, tmp.Z);
 				if (lightprops.TryGetVector3("direction", out tmp))
 					r.Direction = tmp;
 				if (lightprops.TryGetValue("range", out o))
@@ -320,7 +324,7 @@ namespace LibreLancer
 			if (table.TryGetValue("pathprops", out o))
 			{
 				var pathprops = (LuaTable)o;
-				if (pathprops.TryGetValue("path_data", out o))
+                if (pathprops.TryGetValue("path_data", out o))
 				{
 					e.Path = new MotionPath((string)o);
 				}

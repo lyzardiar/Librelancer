@@ -1,23 +1,12 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is RenderTools code (http://flapi.sourceforge.net/).
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2011, 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 namespace LibreLancer
 {
-	public class ChaseCamera : ICamera
+    //Based on camera rigs from https://github.com/brihernandez/FreelancerFlightExample
+    public class ChaseCamera : ICamera
 	{
 		public Viewport Viewport
 		{
@@ -36,8 +25,14 @@ namespace LibreLancer
 		public Vector3 ChasePosition { get; set; }
 		public Matrix4 ChaseOrientation { get; set; }
 
+        public float HorizontalTurnAngle = 15f;
+        public float VerticalTurnUpAngle = 5f;
+        public float VerticalTurnDownAngle = 5f;
+        public float SmoothSpeed = 10f; //Figure out how to translate from FL
+
         public Vector3 DesiredPositionOffset = new Vector3(0, 4f, 28f);
 
+        //Camera Values
 		public Matrix4 Projection { get; private set; }
 		public Matrix4 View { get; private set; }
 		Matrix4 viewprojection;
@@ -96,23 +91,13 @@ namespace LibreLancer
 
 		public void Reset()
 		{
-			UpdateWanted();
-			Position = desiredPosition;
-			Vector3 upVector = ChaseOrientation.Transform(Vector3.Up);
-			View = Matrix4.LookAt(Position, lookAt, upVector);
+            lookAhead = Quaternion.Identity;
+            rigRotate = ChaseOrientation.ExtractRotation();
 		}
 
-		void UpdateWanted()
-		{
-			desiredPosition = ChasePosition + ChaseOrientation.Transform(DesiredPositionOffset);
-		}
-
-
-       
 		public void UpdateProjection()
 		{
             const float defaultFOV = 50;
-
 			Projection = Matrix4.CreatePerspectiveFieldOfView(FOVUtil.CalcFovx(defaultFOV, Viewport.AspectRatio), Viewport.AspectRatio, 3f, 10000000f);
 		}
 
@@ -129,18 +114,60 @@ namespace LibreLancer
         }
 		Vector3 lookAt = Vector3.Zero;
 		Vector3 desiredPosition;
+
+        Quaternion rigRotate = Quaternion.Identity;
+        Quaternion lookAhead = Quaternion.Identity;
+
+        public Vector2 MousePosition;
+
         long fnum = 0;
-		/// <summary>
-		/// Allows the game component to update itself.
-		/// </summary>
+        public bool MouseFlight = true;
 		public void Update(TimeSpan delta)
 		{
             fnum++;
 
-			UpdateWanted();
-            Position = desiredPosition;
-            View = Matrix4.CreateTranslation(-Position) * ChaseOrientation.Inverted();
-			_vpdirty = true;
+            // Normalize screen positions so that the range is -1 to 1. Makes the math easier.
+            var mouseScreenX = (MousePosition.X - (Viewport.Width * 0.5f)) / (Viewport.Width * 0.5f);
+            var mouseScreenY = -(MousePosition.Y - (Viewport.Height * 0.5f)) / (Viewport.Height * 0.5f);
+
+            // Clamp these screen position to make sure the rig doesn't oversteer.
+            mouseScreenX = MathHelper.Clamp(mouseScreenX, -1f, 1f);
+            mouseScreenY = MathHelper.Clamp(mouseScreenY, -1f, 1f);
+
+            if (!MouseFlight) mouseScreenX = mouseScreenY = 0;
+
+            float horizontal = 0f;
+            float vertical = 0f;
+            horizontal = HorizontalTurnAngle * mouseScreenX;
+            vertical = (mouseScreenY < 0.0f) ? VerticalTurnUpAngle * mouseScreenY : VerticalTurnDownAngle * mouseScreenY;
+           
+            lookAhead = DampS(lookAhead, Quaternion.FromEulerAngles(MathHelper.DegreesToRadians(-vertical), MathHelper.DegreesToRadians(-horizontal), 0), SmoothSpeed, (float)delta.TotalSeconds);
+            rigRotate = DampS(rigRotate, ChaseOrientation.ExtractRotation(), SmoothSpeed, (float)delta.TotalSeconds);
+
+
+            var lookAheadPosition = ChaseOrientation.Transform(Vector3.Forward) * 100;
+
+            var rigTransform = Matrix4.CreateFromQuaternion(rigRotate) * Matrix4.CreateTranslation(ChasePosition);
+            var lookAheadTransform = Matrix4.CreateFromQuaternion(lookAhead) * Matrix4.CreateTranslation(DesiredPositionOffset);
+
+            var tr = lookAheadTransform * rigTransform;
+            var lookAheadRigPos = tr.Transform(Vector3.Zero);
+
+            var lookAtTr = Matrix4.CreateFromQuaternion(Quaternion.LookAt(lookAheadRigPos, lookAheadPosition));
+
+            
+            var v = tr;
+            Position = v.Transform(Vector3.Zero);
+            v.Invert();
+            View = v;
+            
+            _vpdirty = true;
 		}
-	}
+
+        //Stable way of interpolating quaternions with variable timestep
+        static Quaternion DampS(Quaternion a, Quaternion b, float lambda, float dt)
+        {
+            return Quaternion.Slerp(a, b, 1 - (float)Math.Exp(-lambda * dt));
+        }
+    }
 }

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -98,13 +87,13 @@ namespace LibreLancer
                 field.Zone.RotationMatrix * 
                 Matrix4.CreateTranslation(field.Zone.Position)
             );
-            bandCylinder = new OpenCylinder(SIDES);
+            bandCylinder = sys.ResourceManager.GetOpenCylinder(SIDES);
             bandNormal = bandTransform;
             bandNormal.Invert();
             bandNormal.Transpose();
         }
 
-        List<VertexPositionNormalColorTexture> verts;
+        List<VertexPositionNormalDiffuseTexture> verts;
         List<ushort> indices;
         List<DrawCall> cubeDrawCalls = new List<DrawCall>();
 
@@ -120,7 +109,7 @@ namespace LibreLancer
         //Code for baking an asteroid cube into a mesh
         void CreateBufferObject()
         {
-            verts = new List<VertexPositionNormalColorTexture>();
+            verts = new List<VertexPositionNormalDiffuseTexture>();
             indices = new List<ushort>();
             //Gather a list of all materials
             List<Material> mats = new List<Material>();
@@ -157,12 +146,12 @@ namespace LibreLancer
                 var start = indices.Count;
                 foreach (var ast in field.Cube)
                 {
-                    AddAsteroidToBuffer(ast, mat);
+                    AddAsteroidToBuffer(ast, mat, mats.Count == 1);
                 }
                 var count = indices.Count - start;
                 cubeDrawCalls.Add(new DrawCall() { Material = mat, StartIndex = start, Count = count });
             }
-            cube_vbo = new VertexBuffer(typeof(VertexPositionNormalColorTexture), verts.Count);
+            cube_vbo = new VertexBuffer(typeof(VertexPositionNormalDiffuseTexture), verts.Count);
             cube_ibo = new ElementBuffer(indices.Count);
             cube_ibo.SetData(indices.ToArray());
             cube_vbo.SetData(verts.ToArray());
@@ -171,7 +160,7 @@ namespace LibreLancer
             indices = null;
         }
 
-        void AddAsteroidToBuffer(StaticAsteroid ast, Material mat)
+        void AddAsteroidToBuffer(StaticAsteroid ast, Material mat, bool singleMat)
         {
             var model = ast.Drawable as ModelFile;
             var l0 = model.Levels[0];
@@ -182,33 +171,33 @@ namespace LibreLancer
             norm.Transpose();
             int vertOffset = verts.Count;
             for (int i = 0; i < l0.Mesh.VertexCount; i++) {
-                VertexPositionNormalColorTexture vert;
-                if (vertType == typeof(VertexPositionNormalColorTexture))
+                VertexPositionNormalDiffuseTexture vert;
+                if (vertType == typeof(VertexPositionNormalDiffuseTexture))
                 {
-                    vert = l0.Mesh.verticesVertexPositionNormalColorTexture[i];
+                    vert = l0.Mesh.verticesVertexPositionNormalDiffuseTexture[i];
                 }
                 else if (vertType == typeof(VertexPositionNormalTexture))
                 {
                     var v = l0.Mesh.verticesVertexPositionNormalTexture[i];
-                    vert = new VertexPositionNormalColorTexture(
+                    vert = new VertexPositionNormalDiffuseTexture(
                         v.Position,
                         v.Normal,
-                        Color4.White,
+                        (uint)Color4.White.ToArgb(),
                         v.TextureCoordinate);
                 }
                 else if (vertType == typeof(VertexPositionNormalTextureTwo))
                 {
                     var v = l0.Mesh.verticesVertexPositionNormalTextureTwo[i];
-                    vert = new VertexPositionNormalColorTexture(
+                    vert = new VertexPositionNormalDiffuseTexture(
                         v.Position,
                         v.Normal,
-                        Color4.White,
+                        (uint)Color4.White.ToArgb(),
                         v.TextureCoordinate);
                 }
                 else if (vertType == typeof(VertexPositionNormalDiffuseTextureTwo))
                 {
                     var v = l0.Mesh.verticesVertexPositionNormalDiffuseTextureTwo[i];
-                    vert = new VertexPositionNormalColorTexture(
+                    vert = new VertexPositionNormalDiffuseTexture(
                         v.Position,
                         v.Normal,
                         v.Diffuse,
@@ -225,6 +214,7 @@ namespace LibreLancer
             for (int i = l0.StartMesh; i < l0.StartMesh + l0.MeshCount; i++)
             {
                 var m = l0.Mesh.Meshes[i];
+                if (m.Material != mat && !singleMat) continue;
                 var baseVertex = vertOffset + l0.StartVertex + m.StartVertex;
                 int indexStart = m.TriangleStart;
                 int indexCount = m.NumRefVertices;
@@ -340,7 +330,7 @@ namespace LibreLancer
                         if (GetExclusionZone(center) != null) {
                             continue;
                         }
-                        cubes[cubeCount++] = new CalculatedCube(center, Matrix4.CreateTranslation(center) * field.CubeRotation.GetRotation(tval));
+                        cubes[cubeCount++] = new CalculatedCube(center, field.CubeRotation.GetRotation(tval) * Matrix4.CreateTranslation(center));
                     }
                 }
             }
@@ -426,18 +416,19 @@ namespace LibreLancer
                                 alpha = ffar / fadePctSq;
                             }
                             var coords = billboardCoords [astbillboards [i].Texture];
-                            sys.Billboards.DrawTri (
+                            /*sys.Billboards.DrawTri (
                                 billboardTex,
                                 astbillboards [i].Position,
                                 astbillboards[i].Size,
-                                new Color4(field.BillboardTint * cameraLights.Ambient.Rgb, alpha),
+                                new Color4(field.BillboardTint * cameraLights.Ambient, alpha),
                                 coords[0], coords[2], coords[1],
                                 0,
                                 SortLayers.OBJECT
-                            );
+                            );*/
                         }
                     }
                 }
+
             }
 
             //Band is last

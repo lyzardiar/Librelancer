@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 
 namespace LibreLancer
@@ -32,19 +21,25 @@ namespace LibreLancer
 		{
 			programBound = 0;
 			bound_vao = 0;
-           
+            for(int i = 0; i < textures.Length; i++) { textures[i] = -1; };
             active_unit = -1;
         }
+
+        static int[] textures = new int[] { -1, -1, -1, -1, -1, -1, -1, -1 };
         static int active_unit = -1;
         public static void BindTexture(int unit, int target, uint texture)
         {
-			var uval = GL.GL_TEXTURE0 + unit;
-			if (uval != active_unit)
-			{
-				GL.ActiveTexture(uval);
-				active_unit = uval;
-			}
-			GL.BindTexture(target, texture);
+            var uval = GL.GL_TEXTURE0 + unit;
+            if (uval != active_unit)
+            {
+                GL.ActiveTexture(uval);
+                active_unit = uval;
+            }
+            if (textures[unit] != (int)texture)
+            {
+                textures[unit] = (int)texture;
+                GL.BindTexture(target, texture);
+            }
         }
 
 		static uint bound_vao = 0;

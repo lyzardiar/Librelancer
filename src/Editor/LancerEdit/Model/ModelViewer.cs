@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +10,7 @@ using LibreLancer.ImUI;
 using LibreLancer.Utf.Cmp;
 using LibreLancer.Utf.Mat;
 using LibreLancer.Utf;
+using DF = LibreLancer.Utf.Dfm;
 using ImGuiNET;
 namespace LancerEdit
 {
@@ -41,8 +31,11 @@ namespace LancerEdit
             "Normals",
             "None"
         };
+
         bool doWireframe = false;
+        bool drawVMeshWire = false;
         bool isStarsphere = false;
+
         const int M_TEXTURED = 0;
         const int M_LIT = 1;
         const int M_FLAT = 2;
@@ -61,6 +54,10 @@ namespace LancerEdit
             Color4.Orange
         };
 
+        FileDialogFilters SurFilters = new FileDialogFilters(
+           new FileFilter("Sur Files", "sur")
+        );
+
         Material wireframeMaterial3db;
         Material normalsDebugMaterial;
         Dictionary<int, Material> partMaterials = new Dictionary<int, Material>();
@@ -70,6 +67,12 @@ namespace LancerEdit
         MainWindow _window;
         PopupManager popups;
         ModelNodes hprefs;
+        TextBuffer filterText = new TextBuffer(128);
+        Part cameraPart;
+        bool doCockpitCam = false;
+        bool doFilter = false;
+        string currentFilter;
+        bool hasVWire = false;
         public ModelViewer(string title, string name, IDrawable drawable, MainWindow win, UtfTab parent, ModelNodes hprefs)
         {
             Title = title;
@@ -90,6 +93,8 @@ namespace LancerEdit
                 var cmp = (CmpFile)drawable;
                 foreach (var p in cmp.Parts)
                 {
+                    if (p.Camera != null) continue;
+                    if (p.Model.VMeshWire != null) hasVWire = true;
                     foreach (var hp in p.Model.Hardpoints)
                     {
                         gizmos.Add(new HardpointGizmo(hp, p.Construct));
@@ -127,6 +132,7 @@ namespace LancerEdit
                 int maxLevels = 0;
                 foreach (var p in cmp.Parts)
                 {
+                    if (p.Camera != null) continue;
                     maxLevels = Math.Max(maxLevels, p.Model.Levels.Length - 1);
                     if (p.Model.Switch2 != null)
                         for (int i = 0; i < p.Model.Switch2.Length - 1; i++)
@@ -139,6 +145,7 @@ namespace LancerEdit
             else if (drawable is ModelFile)
             {
                 var mdl = (ModelFile)drawable;
+                if (mdl.VMeshWire != null) hasVWire = true;
                 rootModel = mdl;
                 foreach (var hp in mdl.Hardpoints)
                 {
@@ -155,13 +162,19 @@ namespace LancerEdit
             maxDistance += 50;
 
             popups = new PopupManager();
-            popups.AddPopup("Confirm Delete", ConfirmDelete, WindowFlags.AlwaysAutoResize);
+            popups.AddPopup("Confirm Delete", ConfirmDelete, ImGuiWindowFlags.AlwaysAutoResize);
+            popups.AddPopup("Warning", MinMaxWarning, ImGuiWindowFlags.AlwaysAutoResize);
             popups.AddPopup("Apply Complete", (x) =>
             {
                 ImGui.Text("Hardpoints successfully written");
                 if (ImGui.Button("Ok")) ImGui.CloseCurrentPopup();
-            },WindowFlags.AlwaysAutoResize);
-            popups.AddPopup("New Hardpoint", NewHardpoint, WindowFlags.AlwaysAutoResize);
+            },ImGuiWindowFlags.AlwaysAutoResize);
+            popups.AddPopup("Apply Complete##Parts", (x) =>
+            {
+                ImGui.Text("Parts successfully written");
+                if (ImGui.Button("Ok")) ImGui.CloseCurrentPopup();
+            }, ImGuiWindowFlags.AlwaysAutoResize);
+            popups.AddPopup("New Hardpoint", NewHardpoint, ImGuiWindowFlags.AlwaysAutoResize);
         }
        
         public override void SetActiveTab(MainWindow win)
@@ -172,8 +185,13 @@ namespace LancerEdit
         {
             var node = new ConstructNode() { Con = con };
             foreach (var p in c.Parts)
-                if (p.Construct == con)
-                    node.Model = p.Model;
+                if (p.Construct == con) {
+                    node.Camera = p.Camera;
+                    if(node.Camera == null) node.Model = p.Model;
+                    else if (p.ObjectName.Equals("cockpit cam", StringComparison.OrdinalIgnoreCase)) {
+                        cameraPart = p;
+                    }
+                }
             return node;
         }
         bool PlaceNode(List<ConstructNode> n, AbstractConstruct con)
@@ -190,6 +208,7 @@ namespace LancerEdit
             }
             return false;
         }
+
         public override void Update(double elapsed)
         {
             if (animator != null)
@@ -201,7 +220,7 @@ namespace LancerEdit
         Color4 background = Color4.CornflowerBlue * new Color4(0.3f, 0.3f, 0.3f, 1f);
         System.Numerics.Vector3 editCol;
 
-        bool[] openTabs = new bool[] { false, false };
+        bool[] openTabs = new bool[] { false, false, false, false };
         void TabButton(string name, int idx)
         {
             if (TabHandler.VerticalTab(name, openTabs[idx]))
@@ -218,11 +237,23 @@ namespace LancerEdit
         void TabButtons()
         {
             ImGuiNative.igBeginGroup();
-            TabButton("Hierachy", 0);
+            if(!(drawable is DF.DfmFile))
+                TabButton("Hierachy", 0);
             if (drawable is CmpFile && ((CmpFile)drawable).Animation != null)
                 TabButton("Animations", 1);
+#if DEBUG
+            if (drawable is DF.DfmFile)
+                TabButton("Skeleton", 2);
+#endif
+            TabButton("Render", 3);
             ImGuiNative.igEndGroup();
             ImGui.SameLine();
+        }
+
+        public override void OnHotkey(Hotkeys hk)
+        {
+            if (hk == Hotkeys.Deselect) selectedNode = null;
+            if (hk == Hotkeys.ResetViewport) modelViewport.ResetControls();
         }
 
         public override void Draw()
@@ -230,8 +261,9 @@ namespace LancerEdit
             bool doTabs = false;
             popups.Run();
             HardpointEditor();
+            PartEditor();
             foreach (var t in openTabs) if (t) { doTabs = true; break; }
-            var contentw = ImGui.GetContentRegionAvailableWidth();
+            var contentw = ImGui.GetContentRegionAvailWidth();
             if (doTabs)
             {
                 ImGui.Columns(2, "##panels", true);
@@ -243,18 +275,21 @@ namespace LancerEdit
                 ImGui.BeginChild("##tabchild");
                 if (openTabs[0]) HierachyPanel();
                 if (openTabs[1]) AnimationPanel();
+                if (openTabs[2]) SkeletonPanel();
+                if (openTabs[3]) RenderPanel();
                 ImGui.EndChild();
                 ImGui.NextColumn();
             }
             TabButtons();
             ImGui.BeginChild("##main");
             if (ImGui.ColorButton("Background Color", new Vector4(background.R, background.G, background.B, 1),
-                                ColorEditFlags.NoAlpha, new Vector2(22, 22)))
+                                ImGuiColorEditFlags.NoAlpha, new Vector2(22, 22)))
             {
                 ImGui.OpenPopup("Background Color###" + Unique);
                 editCol = new System.Numerics.Vector3(background.R, background.G, background.B);
             }
-            if (ImGui.BeginPopupModal("Background Color###" + Unique, WindowFlags.AlwaysAutoResize))
+            bool wOpen = true;
+            if (ImGui.BeginPopupModal("Background Color###" + Unique, ref wOpen, ImGuiWindowFlags.AlwaysAutoResize))
             {
                 ImGui.ColorPicker3("###a", ref editCol);
                 if (ImGui.Button("OK"))
@@ -278,14 +313,48 @@ namespace LancerEdit
             ImGui.SameLine();
             ImGui.Checkbox("Starsphere", ref isStarsphere);
             ImGui.SameLine();
+            if (hasVWire)
+            {
+                ImGui.Checkbox("VMeshWire", ref drawVMeshWire);
+                ImGui.SameLine();
+            }
+            if(cameraPart != null) {
+                ImGui.Checkbox("Cockpit Cam", ref doCockpitCam);
+                ImGui.SameLine();
+            }
             ImGui.Checkbox("Wireframe", ref doWireframe);
             ImGui.SameLine();
             ImGui.Text("View Mode:");
             ImGui.SameLine();
             ImGui.PushItemWidth(-1);
-            ImGui.Combo("##modes", ref viewMode, viewModes);
+            ImGui.Combo("##modes", ref viewMode, viewModes, viewModes.Length);
             ImGui.PopItemWidth();
             DoViewport();
+            //
+            if(ImGui.Button("Reset Camera (Ctrl+R)"))
+            {
+                modelViewport.ResetControls();
+            }
+            ImGui.SameLine();
+            //
+            if (!(drawable is SphFile) && !(drawable is DF.DfmFile))
+            {
+                ImGui.AlignTextToFramePadding();
+                ImGui.Text("Level of Detail:");
+                ImGui.SameLine();
+                ImGui.Checkbox("Use Distance", ref useDistance);
+                ImGui.SameLine();
+                ImGui.PushItemWidth(-1);
+                if (useDistance)
+                {
+                    ImGui.SliderFloat("Distance", ref levelDistance, 0, maxDistance, "%f", 1);
+                }
+                else
+                {
+                    ImGui.Combo("Level", ref level, levels, levels.Length);
+                }
+                ImGui.PopItemWidth();
+            }
             ImGui.EndChild();
         }
 
@@ -295,6 +364,8 @@ namespace LancerEdit
             public AbstractConstruct Parent;
             public bool Enabled;
             public Matrix4? Override = null;
+            public float EditingMin;
+            public float EditingMax;
             public HardpointGizmo(HardpointDefinition def, AbstractConstruct parent)
             {
                 Definition = def;
@@ -308,12 +379,14 @@ namespace LancerEdit
             public AbstractConstruct Con;
             public List<ConstructNode> Nodes = new List<ConstructNode>();
             public ModelFile Model;
+            public CmpCameraInfo Camera;
         }
+
         List<ConstructNode> cons = new List<ConstructNode>();
         ModelFile rootModel;
         List<AbstractConstruct> conOrphan = new List<AbstractConstruct>();
         ConstructNode selectedNode = null;
-        string ConType(AbstractConstruct construct)
+        public static string ConType(AbstractConstruct construct)
         {
             var type = "???";
             if (construct is FixConstruct) type = "Fix";
@@ -326,8 +399,8 @@ namespace LancerEdit
         void DoConstructNode(ConstructNode cn)
         {
             var n = string.Format("{0} ({1})", cn.Con.ChildName, ConType(cn.Con));
-            var tflags = TreeNodeFlags.OpenOnArrow | TreeNodeFlags.OpenOnDoubleClick;
-            if (selectedNode == cn) tflags |= TreeNodeFlags.Selected;
+            var tflags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
+            if (selectedNode == cn) tflags |= ImGuiTreeNodeFlags.Selected;
             var icon = "fix";
             var color = Color4.LightYellow;
             if (cn.Con is PrisConstruct)
@@ -347,233 +420,87 @@ namespace LancerEdit
             }
             if (ImGui.TreeNodeEx(ImGuiExt.Pad(n), tflags))
             {
-                Theme.RenderTreeIcon(n, icon, color);
-                if (ImGuiNative.igIsItemClicked(0))
+                if (ImGui.IsItemClicked(0))
                     selectedNode = cn;
+                ConstructContext(cn);
+                Theme.RenderTreeIcon(n, icon, color);
                 foreach (var child in cn.Nodes)
                     DoConstructNode(child);
-                DoModel(cn.Model, cn.Con);
+                if (cn.Camera != null)
+                    DoCamera(cn.Camera, cn.Con);
+                else
+                    DoModel(cn.Model, cn.Con);
                 ImGui.TreePop();
             }
             else
             {
-                Theme.RenderTreeIcon(n, icon, color);
-                if (ImGuiNative.igIsItemClicked(0))
+                if (ImGui.IsItemClicked(0))
                     selectedNode = cn;
+                ConstructContext(cn);
+                Theme.RenderTreeIcon(n, icon, color);
+
             }
         }
-        HardpointDefinition hpEditing;
-        HardpointDefinition hpDelete;
-        List<HardpointDefinition> hpDeleteFrom;
-        void ConfirmDelete(PopupData data)
+
+        void ConstructContext(ConstructNode con)
         {
-            ImGui.Text(string.Format("Are you sure you wish to delete '{0}'?", hpDelete.Name));
-            if(ImGui.Button("Yes")) {
-                hpDeleteFrom.Remove(hpDelete);
-                var gz = gizmos.Where((x) => x.Definition == hpDelete).First();
-                if (hpDelete == hpEditing) hpEditing = null;
-                gizmos.Remove(gz);
-                ImGui.CloseCurrentPopup();
-            }
-            ImGui.SameLine();
-            if(ImGui.Button("No")) {
-                ImGui.CloseCurrentPopup();
-            }
-        }
-        int GetHpNumbering(string name)
-        {
-            int val = 0;
-            foreach(var gz in gizmos) {
-                if(gz.Definition.Name.StartsWith(name,StringComparison.OrdinalIgnoreCase)) {
-                    int a;
-                    if(int.TryParse(gz.Definition.Name.Substring(name.Length),out a)) {
-                        val = Math.Max(a, val);
+            if (ImGui.IsItemClicked(1))
+                ImGui.OpenPopup(con.Con.ChildName + "_context");
+            if(ImGui.BeginPopupContextItem(con.Con.ChildName + "_context")) {
+                if(Theme.BeginIconMenu("Change To","change",Color4.White)) {
+                    var cmp = (CmpFile)drawable;
+                    if(!(con.Con is FixConstruct) && Theme.IconMenuItem("Fix","fix",Color4.LightYellow,true)) {
+                        var fix = new FixConstruct(cmp.Constructs)
+                        {
+                            ParentName = con.Con.ParentName,
+                            ChildName = con.Con.ChildName,
+                            Origin = con.Con.Origin,
+                            Rotation = con.Con.Rotation
+                        };
+                        fix.Reset();
+                        ReplaceConstruct(con, fix);
                     }
+                    if(!(con.Con is RevConstruct) && Theme.IconMenuItem("Rev","rev",Color4.LightCoral,true)) {
+                        var rev = new RevConstruct(cmp.Constructs)
+                        {
+                            ParentName = con.Con.ParentName,
+                            ChildName = con.Con.ChildName,
+                            Origin = con.Con.Origin,
+                            Rotation = con.Con.Rotation
+                        };
+                        ReplaceConstruct(con, rev);
+                    }
+                    if(!(con.Con is PrisConstruct) && Theme.IconMenuItem("Pris","pris",Color4.LightPink,true)) {
+                        var pris = new PrisConstruct(cmp.Constructs)
+                        {
+                            ParentName = con.Con.ParentName,
+                            ChildName = con.Con.ChildName,
+                            Origin = con.Con.Origin,
+                            Rotation = con.Con.Rotation
+                        };
+                        ReplaceConstruct(con, pris);
+                    }
+                    if(!(con.Con is SphereConstruct) && Theme.IconMenuItem("Sphere","sphere",Color4.LightGreen,true)) {
+                        var sphere = new SphereConstruct(cmp.Constructs)
+                        {
+                            ParentName = con.Con.ParentName,
+                            ChildName = con.Con.ChildName,
+                            Origin = con.Con.Origin,
+                            Rotation = con.Con.Rotation
+                        };
+                        ReplaceConstruct(con, sphere);
+                    }
+                    ImGui.EndMenu();
                 }
-            }
-            return val + 1;
-        }
-        char GetHpLettering(string name)
-        {
-            int letter = (int)'`';
-            foreach(var gz in gizmos) {
-                if(gz.Definition.Name.StartsWith(name,StringComparison.OrdinalIgnoreCase)) {
-                    if(gz.Definition.Name.Length > name.Length) {
-                        letter = Math.Max(char.ToLowerInvariant(gz.Definition.Name[name.Length]), letter);
-                    }
-                }
-            }
-            return char.ToUpperInvariant((char)(letter + 1));
-        }
-        TextBuffer newHpBuffer = new TextBuffer(256);
-        bool newIsFixed = false;
-        List<HardpointDefinition> addTo;
-        AbstractConstruct addConstruct;
-        double newErrorTimer = 0;
-        void NewHardpoint(PopupData data)
-        {
-            ImGui.Text("Name: ");
-            ImGui.SameLine();
-            ImGui.InputText("##hpname", newHpBuffer.Pointer, (uint)newHpBuffer.Size, InputTextFlags.Default, newHpBuffer.Callback);
-            ImGui.SameLine();
-            if(ImGui.Button("..")) {
-                ImGui.OpenPopup("names");
-            }
-            if(ImGui.BeginPopupContextItem("names")) {
-                var infos = newIsFixed ? HardpointInformation.Fix : HardpointInformation.Rev;
-                foreach(var item in infos) {
-                    if(Theme.IconMenuItem(item.Name,item.Icon,item.Color,true)) {
-                        switch(item.Autoname) {
-                            case HpNaming.None:
-                                newHpBuffer.SetText(item.Name);
-                                break;
-                            case HpNaming.Number:
-                                newHpBuffer.SetText(item.Name + GetHpNumbering(item.Name).ToString("00"));
-                                break;
-                            case HpNaming.Letter:
-                                newHpBuffer.SetText(item.Name + GetHpLettering(item.Name));
-                                break;
-                        }
-                    }
+                if(Theme.IconMenuItem("Edit","edit",Color4.White,true)) {
+                    AddPartEditor(con.Con);
                 }
                 ImGui.EndPopup();
             }
-            ImGui.Text("Type: " + (newIsFixed ? "Fixed" : "Revolute"));
-            if(newErrorTimer > 0) {
-                ImGui.Text("Hardpoint with that name already exists.", new Vector4(1, 0, 0, 1));
-            }
-            if(ImGui.Button("Ok")) {
-                var txt = newHpBuffer.GetText();
-                if(txt.Length == 0) {
-                    return;
-                }
-                if (gizmos.Any((x) => x.Definition.Name.Equals(txt, StringComparison.OrdinalIgnoreCase)))
-                    newErrorTimer = 6;
-                else
-                {
-                    HardpointDefinition def;
-                    if (newIsFixed) def = new FixedHardpointDefinition(txt);
-                    else def = new RevoluteHardpointDefinition(txt);
-                    gizmos.Add(new HardpointGizmo(def, addConstruct));
-                    addTo.Add(def);
-                    ImGui.CloseCurrentPopup();
-                }
-            }
-            ImGui.SameLine();
-            if(ImGui.Button("Cancel")) {
-                ImGui.CloseCurrentPopup();
-            }
         }
-        bool hpEditOpen = false;
-        HardpointGizmo editingGizmo;
-        float HPpitch, HPyaw, HProll;
-        float HPx, HPy, HPz;
-        float HPaxisX, HPaxisY, HPaxisZ;
-        float HPmin, HPmax;
-        void SetHardpointValues()
+        void DoCamera(CmpCameraInfo cam, AbstractConstruct con)
         {
-            HPx = hpEditing.Position.X;
-            HPy = hpEditing.Position.Y;
-            HPz = hpEditing.Position.Z;
-            var euler = hpEditing.Orientation.GetEuler();
-            HPpitch = MathHelper.RadiansToDegrees(euler.X); 
-            HPyaw = MathHelper.RadiansToDegrees(euler.Y); 
-            HProll = MathHelper.RadiansToDegrees(euler.Z);
-            if (hpEditing is RevoluteHardpointDefinition)
-            {
-                var rev = (RevoluteHardpointDefinition)hpEditing;
-                HPmin = MathHelper.RadiansToDegrees(rev.Min); 
-                HPmax = MathHelper.RadiansToDegrees(rev.Max);
-                HPaxisX = rev.Axis.X;
-                HPaxisY = rev.Axis.Y;
-                HPaxisZ = rev.Axis.Z;
-            }
-        }
-        bool first = true;
-        unsafe void HardpointEditor()
-        {
-            if(hpEditing == null) {
-                hpEditOpen = false;
-                return;
-            }
-            if(hpEditing != null && hpEditOpen == false) {
-                editingGizmo = gizmos.First((x) => x.Definition == hpEditing);
-                hpEditOpen = true;
-                SetHardpointValues();
-            }
-            if(ImGui.BeginWindow("Hardpoint Editor##" + Unique,ref hpEditOpen, first ? WindowFlags.AlwaysAutoResize : WindowFlags.Default)) {
-                first = false;
-                ImGui.Text(hpEditing.Name);
-                bool isFix = hpEditing is FixedHardpointDefinition;
-                ImGui.Text("Type: " + (isFix ? "Fixed" : "Revolute"));
-                if (ImGui.Button("Reset")) SetHardpointValues();
-                ImGui.Separator();
-                ImGui.Text("Position");
-                fixed (float* hpx = &HPx)
-                    ImGuiNative.igInputFloat("X##posX", hpx, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                fixed (float* hpy = &HPy)
-                    ImGuiNative.igInputFloat("Y##posY", hpy, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                fixed (float* hpz = &HPz)
-                    ImGuiNative.igInputFloat("Z##posZ", hpz, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                ImGui.Separator();
-                ImGui.Text("Rotation");
-                fixed (float* hpp = &HPpitch)
-                    ImGuiNative.igInputFloat("Pitch", hpp, 0.1f, 1f, 4, InputTextFlags.CharsDecimal);
-                fixed (float* hpy = &HPyaw)
-                    ImGuiNative.igInputFloat("Yaw", hpy, 0.1f, 1f, 4, InputTextFlags.CharsDecimal);
-                fixed (float* hpr = &HProll)
-                    ImGuiNative.igInputFloat("Roll", hpr, 0.1f, 1f, 4, InputTextFlags.CharsDecimal);
-                ImGui.Separator();
-                if(!isFix) {
-                    ImGui.Text("Axis");
-                    fixed (float* axx = &HPaxisX)
-                        ImGuiNative.igInputFloat("X##axisX", axx, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                    fixed (float* axy = &HPaxisY)
-                        ImGuiNative.igInputFloat("Y##axisY", axy, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                    fixed (float* axz = &HPaxisZ)
-                        ImGuiNative.igInputFloat("Z##axisZ", axz, 0.01f, 0.25f, 5, InputTextFlags.CharsDecimal);
-                    fixed (float* axmn = &HPmin)
-                        ImGuiNative.igInputFloat("Min", axmn, 0.1f, 1f, 4, InputTextFlags.CharsDecimal);
-                    fixed (float* axmx = &HPmax)
-                        ImGuiNative.igInputFloat("Max", axmx, 0.1f, 1f, 4, InputTextFlags.CharsDecimal);
-                    ImGui.Separator();
-                }
-                if(ImGui.Button("Apply")) {
-                    hpEditing.Position = new Vector3(HPx, HPy, HPz);
-                    hpEditing.Orientation = Matrix4.CreateFromQuaternion(
-                        Quaternion.FromEulerAngles(
-                            MathHelper.DegreesToRadians(HPpitch), 
-                            MathHelper.DegreesToRadians(HPyaw), 
-                            MathHelper.DegreesToRadians(HProll)
-                        )
-                    );
-                    if(!isFix) {
-                        var rev = (RevoluteHardpointDefinition)hpEditing;
-                        rev.Min = MathHelper.DegreesToRadians(HPmin);
-                        rev.Max = MathHelper.DegreesToRadians(HPmax);
-                        rev.Axis = new Vector3(HPaxisX, HPaxisY, HPaxisZ);
-                    }
-                    hpEditOpen = false;
-                }
-                ImGui.SameLine();
-                if(ImGui.Button("Cancel")) {
-                    hpEditOpen = false;
-                }
-                editingGizmo.Override =Matrix4.CreateFromQuaternion(
-                        Quaternion.FromEulerAngles(
-                            MathHelper.DegreesToRadians(HPpitch),
-                            MathHelper.DegreesToRadians(HPyaw),
-                            MathHelper.DegreesToRadians(HProll)
-                        )
-                    ) * Matrix4.CreateTranslation(HPx, HPy, HPz);
-                ImGui.EndWindow();
-            }
-            if (hpEditOpen == false)
-            {
-                hpEditing = null;
-                editingGizmo.Override = null;
-                editingGizmo = null;
-            }
+
         }
         void DoModel(ModelFile mdl, AbstractConstruct con)
         {
@@ -594,6 +521,9 @@ namespace LancerEdit
             {
                 foreach (var hp in mdl.Hardpoints)
                 {
+                    if(doFilter) {
+                        if (hp.Name.IndexOf(currentFilter,StringComparison.OrdinalIgnoreCase) == -1) continue;
+                    }
                     HardpointGizmo gz = null;
                     foreach (var gizmo in gizmos)
                     {
@@ -635,10 +565,10 @@ namespace LancerEdit
         }
         ContextActions NewHpMenu(string n)
         {
-            if(ImGuiNative.igIsItemClicked(1))
+            if(ImGui.IsItemClicked(1))
                 ImGui.OpenPopup(n + "_HardpointContext");
             if(ImGui.BeginPopupContextItem(n + "_HardpointContext")) {
-                if(ImGui.BeginMenu("New")) {
+                if(Theme.BeginIconMenu("New","add",Color4.White)) {
                     if (Theme.IconMenuItem("Fixed Hardpoint","fix",Color4.Purple,true)) return ContextActions.NewFixed;
                     if (Theme.IconMenuItem("Revolute Hardpoint","rev",Color4.LightSeaGreen,true)) return ContextActions.NewRevolute;
                     ImGui.EndMenu();
@@ -649,11 +579,11 @@ namespace LancerEdit
         }
         ContextActions EditDeleteHpMenu(string n)
         {
-            if(ImGuiNative.igIsItemClicked(1))
+            if(ImGui.IsItemClicked(1))
                 ImGui.OpenPopup(n + "_HardpointEditCtx");
             if(ImGui.BeginPopupContextItem(n + "_HardpointEditCtx")) {
-                if(ImGui.MenuItem("Edit")) return ContextActions.Edit;
-                if(ImGui.MenuItem("Delete")) return ContextActions.Delete;
+                if(Theme.IconMenuItem("Edit","edit",Color4.White,true)) return ContextActions.Edit;
+                if(Theme.IconMenuItem("Delete","delete",Color4.White,true)) return ContextActions.Delete;
                 ImGui.EndPopup();
             }
             return ContextActions.None;
@@ -680,23 +610,73 @@ namespace LancerEdit
                 return Math.Min(level, maxLevel);
             }
         }
+
+        string surname;
+        bool surShowHull = true;
+        bool surShowHps = true;
         void HierachyPanel()
         {
-            if (!(drawable is SphFile))
+            if(!(drawable is DF.DfmFile) && !(drawable is SphFile))
             {
-                ImGui.Text("Level of Detail");
-                ImGui.Checkbox("Use Distance", ref useDistance);
-                if (useDistance)
+                //Sur
+                if(ImGui.Button("Open Sur"))
                 {
-                    ImGui.SliderFloat("Distance", ref levelDistance, 0, maxDistance, "%f", 1);
+                    var file = FileDialog.Open(SurFilters);
+                    surname = System.IO.Path.GetFileName(file);
+                    LibreLancer.Physics.Sur.SurFile sur;
+                    try
+                    {
+                        using (var f = System.IO.File.OpenRead(file))
+                        {
+                            sur = new LibreLancer.Physics.Sur.SurFile(f);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        sur = null;
+                    }
+                    if (sur != null) ProcessSur(sur);
                 }
-                else
+                if(surs != null)
                 {
-                    ImGui.Combo("Level", ref level, levels);
+                    ImGui.Separator();
+                    ImGui.Text("Sur: " + surname);
+                    ImGui.Checkbox("Show Hull", ref surShowHull);
+                    ImGui.Checkbox("Show Hardpoints", ref surShowHps);
+                    ImGui.Separator();
                 }
-                ImGui.Separator();
             }
+            if (ImGui.Button("Apply Hardpoints"))
+            {
+                if (drawable is CmpFile)
+                {
+                    var cmp = (CmpFile)drawable;
+                    foreach (var kv in cmp.Models)
+                    {
+                        var node = hprefs.Nodes.Where((x) => x.Name == kv.Key).First();
+                        node.HardpointsToNodes(kv.Value.Hardpoints);
+                    }
+                }
+                else if (drawable is ModelFile)
+                {
+                    hprefs.Nodes[0].HardpointsToNodes(((ModelFile)drawable).Hardpoints);
+                }
+                popups.OpenPopup("Apply Complete");
+            }
+            if ((drawable is CmpFile) && ((CmpFile)drawable).Parts.Count > 1 && ImGui.Button("Apply Parts"))
+            {
+                WriteConstructs();
+                popups.OpenPopup("Apply Complete##Parts");
+            }
+            if (ImGuiExt.ToggleButton("Filter", doFilter)) doFilter = !doFilter;
+            if (doFilter) {
+                ImGui.InputText("##filter", filterText.Pointer, (uint)filterText.Size, ImGuiInputTextFlags.None, filterText.Callback);
+                currentFilter = filterText.GetText();
+            }
+            else
+                currentFilter = null;
 
+            ImGui.Separator();
             if (selectedNode != null)
             {
                 ImGui.Text(selectedNode.Con.ChildName);
@@ -709,20 +689,7 @@ namespace LancerEdit
                                          MathHelper.RadiansToDegrees(euler.Z)));
                 ImGui.Separator();
             }
-            if(ImGui.Button("Apply Hardpoints")) {
-                if(drawable is CmpFile) {
-                    var cmp = (CmpFile)drawable;
-                    foreach(var kv in cmp.Models) {
-                        var node = hprefs.Nodes.Where((x) => x.Name == kv.Key).First();
-                        node.HardpointsToNodes(kv.Value.Hardpoints);
-                    }
-                } else if (drawable is ModelFile) {
-                    hprefs.Nodes[0].HardpointsToNodes(((ModelFile)drawable).Hardpoints);
-                }
-                popups.OpenPopup("Apply Complete");
-            }
-
-            if (ImGui.TreeNodeEx(ImGuiExt.Pad("Root"), TreeNodeFlags.DefaultOpen))
+            if (ImGui.TreeNodeEx(ImGuiExt.Pad("Root"), ImGuiTreeNodeFlags.DefaultOpen))
             {
                 Theme.RenderTreeIcon("Root", "tree", Color4.DarkGreen);
                 foreach (var n in cons)
@@ -745,8 +712,62 @@ namespace LancerEdit
                     animator.StartAnimation(sc.Key, false);
                 }
             }
+            ImGui.Separator();
+            if (ImGui.Button("Reset")) animator.ResetAnimations();
         }
 
+        bool drawSkeleton = false;
+        void SkeletonPanel()
+        {
+            ImGui.Text("Remove #if DEBUG when working");
+            ImGui.Separator();
+            ImGui.Checkbox("Draw Skeleton", ref drawSkeleton);
+            var dfm = ((DF.DfmFile)drawable);
+            foreach(var c in ((DF.DfmFile)drawable).Constructs.Constructs)
+            {
+                ImGui.Separator();
+                ImGui.Text("Parent: " + c.ParentName);
+                ImGui.Text("Bone A: " + c.BoneA);
+                var b = dfm.Parts.Values.FirstOrDefault(x => x.objectName == c.BoneA);
+                if (b != null)
+                    ImGui.Text("  BoneToRoot: " + b.Bone.BoneToRoot.Transform(Vector3.Zero));
+                ImGui.Text("Bone B: " + c.BoneB);
+                b = dfm.Parts.Values.FirstOrDefault(x => x.objectName == c.BoneB);
+                if (b != null)
+                    ImGui.Text("  BoneToRoot: " + b.Bone.BoneToRoot.Transform(Vector3.Zero));
+                ImGui.Text("Joint Translate: " + c.Origin);
+            }
+        }
+
+        int imageWidth = 256;
+        int imageHeight = 256;
+        bool renderBackground = false;
+        FileDialogFilters pngFilters = new FileDialogFilters(new FileFilter("PNG Files", "png"));
+        unsafe void RenderPanel()
+        {
+            ImGui.Text("Render to Image");
+            ImGui.Checkbox("Background?", ref renderBackground);
+            ImGui.InputInt("Width", ref imageWidth);
+            ImGui.InputInt("Height", ref imageHeight);
+            var w = Math.Max(imageWidth, 16);
+            var h = Math.Max(imageHeight, 16);
+            var rpanelWidth = ImGui.GetWindowWidth() - 15;
+            int rpanelHeight = Math.Min((int)(rpanelWidth * ((float)h / (float)w)), 4096);
+            DoPreview((int)rpanelWidth, rpanelHeight);
+            if (ImGui.Button("Export"))
+            {
+                if(imageWidth < 16 || imageHeight < 16)
+                {
+                    FLLog.Error("Export", "Image minimum size is 16x16");
+                }
+                else
+                {
+                    string output;
+                    if((output = FileDialog.Save(pngFilters)) != null)
+                        RenderImage(output);
+                }
+            }
+        }
         public override void DetectResources(List<MissingReference> missing, List<uint> matrefs, List<string> texrefs)
         {
             ResourceDetection.DetectDrawable(Name, drawable, res, missing, matrefs, texrefs);
@@ -754,7 +775,17 @@ namespace LancerEdit
 
         public override void Dispose()
         {
+            if(surs != null)
+            {
+                foreach(var s in surs)
+                {
+                    s.Vertices.Dispose();
+                    s.Elements.Dispose();
+                }
+            }
             modelViewport.Dispose();
+            imageViewport.Dispose();
+            previewViewport.Dispose();
             newHpBuffer.Dispose();
         }
     }

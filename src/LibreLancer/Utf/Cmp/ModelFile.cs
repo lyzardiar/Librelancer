@@ -1,31 +1,13 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * The Original Code is Starchart code (http://flapi.sourceforge.net/).
- * Data structure from Freelancer UTF Editor by Cannon & Adoxa, continuing the work of Colin Sanby and Mario 'HCl' Brito (http://the-starport.net)
- * 
- * The Initial Developer of the Original Code is Malte Rupprecht (mailto:rupprema@googlemail.com).
- * Portions created by the Initial Developer are Copyright (C) 2011, 2012
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Malte Rupprecht
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 
 using System;
 using System.Collections.Generic;
 
-//using FLCommon;
-
-//using FLParser.Utf;
-
 using LibreLancer.Utf.Mat;
 using LibreLancer.Utf.Vms;
-//using FLApi.Universe;
 
 namespace LibreLancer.Utf.Cmp
 {
@@ -48,6 +30,7 @@ namespace LibreLancer.Utf.Cmp
         public List<HardpointDefinition> Hardpoints { get; private set; }
         public VMeshRef[] Levels { get; private set; }
         public float[] Switch2 { get; private set; }
+        public VMeshWire VMeshWire { get; private set; }
 
         public ModelFile(string path, ILibFile additionalLibrary)
         {
@@ -107,7 +90,9 @@ namespace LibreLancer.Utf.Cmp
                                     foreach (IntermediateNode revoluteNode in hardpointTypeNode)
                                         Hardpoints.Add(new RevoluteHardpointDefinition(revoluteNode));
                                     break;
-                                default: throw new Exception("Invalid node in " + hardpointsNode.Name + ": " + hardpointTypeNode.Name);
+                                default:
+                                    Hardpoints.Add(new FixedHardpointDefinition(hardpointTypeNode));
+                                    break;
                             }
                         }
                         break;
@@ -155,7 +140,7 @@ namespace LibreLancer.Utf.Cmp
                         }
                         break;
                     case "vmeshwire":
-                        // TODO 3db VMeshWire
+                        VMeshWire = new VMeshWire(node as IntermediateNode, this);
                         break;
                     case "mass properties":
                         // TODO 3db Mass Properties
@@ -192,6 +177,7 @@ namespace LibreLancer.Utf.Cmp
         {
             for(int i = 0; i < Levels.Length; i++) Levels[i].Initialize(cache);
             ready = Levels.Length > 0;
+            if(VMeshWire != null) VMeshWire.Initialize(this);
         }
 
         public void Resized()

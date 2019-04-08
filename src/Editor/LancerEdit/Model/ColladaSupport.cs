@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -156,10 +145,7 @@ namespace LancerEdit
                         writer.Write(v.Normal.Z);
                     }
                     if ((FVF & D3DFVF.DIFFUSE) == D3DFVF.DIFFUSE) {
-                        writer.Write((byte)(v.Diffuse.R * 255));
-                        writer.Write((byte)(v.Diffuse.G * 255));
-                        writer.Write((byte)(v.Diffuse.B * 255));
-                        writer.Write((byte)(v.Diffuse.A * 255));
+                        writer.Write(v.Diffuse);
                     }
                     //Librelancer stores texture coordinates flipped internally
                     if((FVF & D3DFVF.TEX2) == D3DFVF.TEX2) {
@@ -344,6 +330,7 @@ namespace LancerEdit
                     inputs = plist.input;
                     triangleCount = (int)(plist.count * 3);
                 }
+                if (triangleCount == 0) continue; //Skip empty
                 //Blender workaround #1 - their stuff is crap
                 if(!string.IsNullOrEmpty(material) && isBlender && material.EndsWith("-material",StringComparison.InvariantCulture)) {
                     material = material.Substring(0, material.Length - 9);
@@ -436,7 +423,7 @@ namespace LancerEdit
                     var vert = new VertexPositionNormalDiffuseTextureTwo(
                         VecAxis(up, sourceXYZ.GetXYZ(pRefs[idx + offXYZ])),
                         offNORMAL == int.MinValue ? Vector3.Zero : VecAxis(up, sourceNORMAL.GetXYZ(pRefs[idx + offNORMAL])),
-                        offCOLOR == int.MinValue ? Color4.White : sourceCOLOR.GetColor(pRefs[idx + offCOLOR]),
+                        offCOLOR == int.MinValue ? (uint)Color4.White.ToRgba() : (uint)sourceCOLOR.GetColor(pRefs[idx + offCOLOR]).ToRgba(),
                         offUV1 == int.MinValue ? Vector2.Zero : sourceUV1.GetUV(pRefs[idx + offUV1]),
                         offUV2 == int.MinValue ? Vector2.Zero : sourceUV2.GetUV(pRefs[idx + offUV2])
                     );

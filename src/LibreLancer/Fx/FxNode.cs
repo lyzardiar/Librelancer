@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using LibreLancer.Utf.Ale;
 
@@ -43,21 +32,20 @@ namespace LibreLancer.Fx
 				NodeLifeSpan = (float)temp.Value;
 			}
 		}
-		protected static Matrix4 GetTranslation(NodeReference reference, Matrix4 attachment, float sparam, float time)
+
+        protected static Matrix4 GetAttachment(NodeReference reference, Matrix4 attachment)
 		{
-			Matrix4 mat = Matrix4.Identity;
-			if(reference.Node != null && reference.Node.Transform != null)
-				mat = reference.Node.Transform.GetMatrix (sparam, time);
 			if (reference.IsAttachmentNode) {
-				return attachment * mat;
+                return attachment;
 			}
 			else if (reference.Parent == null) {
-				return mat;
+				return Matrix4.Identity;
 			}
 			else {
-                return GetTranslation(reference.Parent, attachment, sparam, time) * mat;
+                return GetAttachment(reference.Parent, attachment);
 			}
 		}
+
 		public virtual void Update(NodeReference reference, ParticleEffectInstance instance, TimeSpan delta, ref Matrix4 transform, float sparam)
 		{
 		}

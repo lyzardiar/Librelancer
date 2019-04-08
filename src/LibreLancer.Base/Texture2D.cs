@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -36,6 +25,7 @@ namespace LibreLancer
             Format = format;
             Format.GetGLFormat(out glInternalFormat, out glFormat, out glType);
             LevelCount = hasMipMaps ? CalculateMipLevels(width, height) : 1;
+            currentLevels = hasMipMaps ? (LevelCount - 1) : 0;
 			//Bind the new TextureD
 			GLBind.Trash();
 			GLBind.BindTexture(4, GL.GL_TEXTURE_2D, ID);
@@ -75,14 +65,14 @@ namespace LibreLancer
         public void SetFiltering(TextureFiltering filtering)
 		{
             if (currentFiltering == filtering) return;
-            if(GLExtensions.Anisotropy && currentFiltering == TextureFiltering.Anisotropic) {
-                GL.TexParameterf(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
-            }
             currentFiltering = filtering;
             BindTo(4);
-			if (LevelCount > 1)
+            if (LevelCount > 1)
 			{
-				switch (filtering)
+                if (GLExtensions.Anisotropy && currentFiltering != TextureFiltering.Anisotropic) { 
+                    GL.TexParameterf(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
+                }
+                switch (filtering)
 				{
                     case TextureFiltering.Anisotropic:
                         GL.TexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR_MIPMAP_LINEAR);
@@ -141,7 +131,15 @@ namespace LibreLancer
         public override void BindTo(int unit)
         {
             GLBind.BindTexture(unit, GL.GL_TEXTURE_2D, ID);
+            //Unit 4 is for creation, don't call it a trillion times
+            if(unit != 4 && LevelCount > 1 && maxLevel != currentLevels) {
+                currentLevels = maxLevel;
+                GL.TexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAX_LEVEL, maxLevel);
+            }
         }
+
+        int maxLevel = 0;
+        int currentLevels = 0;
 
 		//TODO: Re-implement Texture2D.GetData later
         public void GetData<T>(int level, Rectangle? rect, T[] data, int start, int count) where T : struct
@@ -180,7 +178,8 @@ namespace LibreLancer
 		}
 		public unsafe void SetData<T>(int level, Rectangle? rect, T[] data, int start, int count) where T: struct
         {
-			BindTo(4);
+            maxLevel = Math.Max(level, maxLevel);
+            BindTo(4);
 			if (glFormat == GL.GL_NUM_COMPRESSED_TEXTURE_FORMATS)
             {
 				int w, h;

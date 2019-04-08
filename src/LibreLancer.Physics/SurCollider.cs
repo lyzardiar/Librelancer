@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -74,20 +63,28 @@ namespace LibreLancer.Physics
             surs.Add(GetSur(path));
             return surs.Count - 1;
         }
-
         public void UpdatePart(object tag, Matrix4 localTransform)
         {
             var tr = localTransform.Cast();
-            foreach(var part in children) {
-                if(part.Tag == tag) {
-                    for (int i = part.Index; i < (part.Index + part.Count); i++) {
-                        btCompound.UpdateChildTransform(i, tr);
+            foreach (var part in children)
+            {
+                if (part.Tag == tag)
+                {
+                    if (part.CurrentTransform == localTransform) return;
+                    part.CurrentTransform = localTransform;
+                    for (int i = part.Index; i < (part.Index + part.Count); i++)
+                    {
+                        btCompound.UpdateChildTransform(i, tr, false);
                     }
                     break;
                 }
             }
+        }
+        public void FinishUpdatePart()
+        {
             btCompound.RecalculateLocalAabb();
         }
+
         public IEnumerable<BoundingBox> GetBoxes(Matrix4 transform)
         {
             foreach(var shape in btCompound.ChildList) {
@@ -101,6 +98,7 @@ namespace LibreLancer.Physics
             public object Tag;
             public int Index = 0;
             public int Count = 0;
+            public Matrix4 CurrentTransform;
         }
     }
 

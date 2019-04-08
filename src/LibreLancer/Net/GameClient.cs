@@ -1,19 +1,10 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2017
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net;
 using System.Threading;
 using Lidgren.Network;
@@ -62,7 +53,7 @@ namespace LibreLancer
 		{
 			if (running)
 			{
-				while (client == null) Thread.Sleep(0);
+				while (client == null || client.Status != NetPeerStatus.Running) Thread.Sleep(0);
 				client.DiscoverLocalPeers(NetConstants.DEFAULT_PORT);
 			}
 		}
@@ -75,6 +66,7 @@ namespace LibreLancer
 		bool connecting = true;
 		public void Connect(IPEndPoint endPoint)
 		{
+            lock (srvinfo) srvinfo.Clear();
 			connecting = true;
 			var message = client.CreateMessage();
 			message.Write("Hello World!");
@@ -96,16 +88,32 @@ namespace LibreLancer
 			om.Write((byte)PacketKind.NewCharacter);
 			client.SendMessage(om, NetDeliveryMethod.ReliableOrdered);
 		}
+        Stopwatch sw;
+        List<LocalServerInfo> srvinfo = new List<LocalServerInfo>();
 
-		void NetworkThread()
+        void NetworkThread()
 		{
+            sw = Stopwatch.StartNew();
 			var conf = new NetPeerConfiguration(NetConstants.DEFAULT_APP_IDENT);
 			client = new NetClient(conf);
 			client.Start();
 			NetIncomingMessage im;
-			while (running)
+                
+            while (running)
 			{
-				while ((im = client.ReadMessage()) != null)
+                //ping servers
+                lock (srvinfo)
+                {
+                    foreach (var inf in srvinfo)
+                    {
+                        if (sw.ElapsedMilliseconds - inf.LastPingTime > 2500)
+                        {
+                            inf.LastPingTime = sw.ElapsedMilliseconds;
+                            AsyncPing.Run(inf.EndPoint.Address, x => inf.Ping = x);
+                        }
+                    }
+                }
+                while ((im = client.ReadMessage()) != null)
 				{
 					/*try
 					{*/
@@ -124,8 +132,12 @@ namespace LibreLancer
 									info.EndPoint = im.SenderEndPoint;
 									info.Name = im.ReadString();
 									info.Description = im.ReadString();
-									info.CurrentPlayers = im.ReadInt32();
+                                    info.DataVersion = im.ReadString();
+                                    info.CurrentPlayers = im.ReadInt32();
 									info.MaxPlayers = im.ReadInt32();
+                                    info.LastPingTime = sw.ElapsedMilliseconds;
+                                    lock (srvinfo) srvinfo.Add(info);
+                                    AsyncPing.Run(info.EndPoint.Address, x => info.Ping = x);
 									mainThread.QueueUIThread(() => ServerFound(info));
 								}
 								break;

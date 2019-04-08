@@ -1,4 +1,8 @@
-﻿using System;
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
+using System;
 using System.Collections.Generic;
 using ImGuiNET;
 namespace LibreLancer.ImUI
@@ -12,9 +16,9 @@ namespace LibreLancer.ImUI
             public Action<PopupData> DrawAction;
             public PopupData Data;
             public string Title;
-            public WindowFlags Flags;
+            public ImGuiWindowFlags Flags;
         }
-        public void AddPopup(string title, Action<PopupData> action, WindowFlags flags = 0)
+        public void AddPopup(string title, Action<PopupData> action, ImGuiWindowFlags flags = 0)
         {
             popups.Add(new PopupContext() { Title = title, DrawAction = action, Flags = flags, Data = new PopupData() });
         }
@@ -37,7 +41,8 @@ namespace LibreLancer.ImUI
                     ImGui.OpenPopup(p.Title);
                     p.DoOpen = false;
                 }
-                if(ImGui.BeginPopupModal(p.Title, p.Flags)) {
+                bool open = true;
+                if(ImGui.BeginPopupModal(p.Title, ref open,p.Flags)) {
                    
                     p.DrawAction(p.Data);
                     if (p.Data.First)

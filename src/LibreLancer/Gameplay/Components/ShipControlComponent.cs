@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2017
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 namespace LibreLancer
 {
@@ -139,10 +128,11 @@ namespace LibreLancer
 			var steerControl = new Vector3(Math.Abs(PlayerPitch) > 0 ? PlayerPitch : Pitch,
 										   Math.Abs(PlayerYaw) > 0 ? PlayerYaw : Yaw,
 										   0);
-            var coords = Parent.PhysicsComponent.Body.Transform.GetEuler();
+            double pitch, yaw, roll;
+            DecomposeOrientation(Parent.PhysicsComponent.Body.Transform, out pitch, out yaw, out roll);
             if (Math.Abs(PlayerPitch) < 0.005 && Math.Abs(PlayerYaw) < 0.005)
             {
-                steerControl.Z = MathHelper.Clamp((float)rollPID.Update(0, coords.Z, (float)time.TotalSeconds), -1, 1);
+                steerControl.Z = MathHelper.Clamp((float)rollPID.Update(0, roll, (float)time.TotalSeconds), -1, 1);
             }
             var angularForce = Parent.PhysicsComponent.Body.RotateVector(steerControl * Ship.SteeringTorque);
             angularForce += (Parent.PhysicsComponent.Body.AngularVelocity * -1) * Ship.AngularDrag;
@@ -151,6 +141,24 @@ namespace LibreLancer
             Parent.PhysicsComponent.Body.AddTorque(angularForce);
 
 		}
+        //This works with the roll thing. Gonna get rid of this whole impl soon anyway
+        static void DecomposeOrientation(Matrix4 mx, out double xPitch, out double yYaw, out double zRoll)
+        {
+            xPitch = Math.Asin(-mx.M32);
+            double threshold = 0.001; // Hardcoded constant – burn him, he’s a witch
+            double test = Math.Cos(xPitch);
 
-	}
+            if (test > threshold)
+            {
+                zRoll = Math.Atan2(mx.M12, mx.M22);
+                yYaw = Math.Atan2(mx.M31, mx.M33);
+            }
+            else
+            {
+                zRoll = Math.Atan2(-mx.M21, mx.M11);
+                yYaw = 0.0;
+            }
+        }
+
+    }
 }

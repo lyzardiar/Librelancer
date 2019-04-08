@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using LibreLancer.Vertices;
 using LibreLancer.Utf.Mat;
@@ -22,6 +11,7 @@ namespace LibreLancer
 
 	public abstract class RenderMaterial
 	{
+        public static bool VertexLighting = false;
 		public MaterialAnim MaterialAnim;
 		public Matrix4 World = Matrix4.Identity;
 		public bool FlipNormals = false;
@@ -33,7 +23,8 @@ namespace LibreLancer
 		public abstract void Use(RenderState rstate, IVertexType vertextype, ref Lighting lights);
         public virtual void UpdateFlipNormals() {} //Optimisation
 		public abstract bool IsTransparent { get; }
-		public bool DoubleSided = false;
+        public virtual bool DisableCull {  get { return false; } }
+        public bool DoubleSided = false;
 		Texture2D[] textures = new Texture2D[8];
 		bool[] loaded = new bool[8];
 		protected static bool HasSpotlight(ref Lighting lights)
@@ -97,7 +88,7 @@ namespace LibreLancer
                 shader.SetLightParameters(new Vector4i(0, 0, 0, -1));
                 return;
             }
-            shader.SetAmbientColor(lights.Ambient);
+            shader.SetAmbientColor(new Color4(lights.Ambient,1));
 			bool hasSpotlight = HasSpotlight(ref lights);
             int count = 0;
             if(lights.Lights.SourceLighting != null) {
@@ -112,13 +103,13 @@ namespace LibreLancer
             shader.SetLightParameters(new Vector4i(1, count, (int)lights.FogMode, lights.NumberOfTilesX));
 			if (lights.FogMode == FogModes.Linear)
 			{
-				shader.SetFogColor(lights.FogColor);
+				shader.SetFogColor(new Color4(lights.FogColor,1));
 				shader.SetFogRange(lights.FogRange);
 			}
 			else if (lights.FogMode == FogModes.Exp || lights.FogMode == FogModes.Exp2)
 			{
-				shader.SetFogColor(lights.FogColor);
-				shader.SetFogRange(new Vector2(lights.FogDensity, 0));
+				shader.SetFogColor(new Color4(lights.FogColor,1));
+				shader.SetFogRange(new Vector2(lights.FogRange.X, 0));
 			}
 		}
 
@@ -154,6 +145,8 @@ namespace LibreLancer
 			var tex2d = textures[cacheidx];
 			if (tex2d.IsDisposed)
 				tex2d = textures[cacheidx] = (Texture2D)Library.FindTexture(tex);
+            if (tex2d == null)
+                tex2d = (Texture2D)Library.FindTexture(ResourceManager.NullTextureName);
 			tex2d.BindTo(unit);
 			tex2d.SetFiltering(rstate.PreferredFilterLevel);
 			if ((flags & SamplerFlags.ClampToEdgeU) == SamplerFlags.ClampToEdgeU)

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -42,7 +31,7 @@ namespace LancerEdit
     {
         static bool first = true;
 
-        static void LoadLibraries()
+        public static void LoadLibraries()
         {
             if (first)
             {
@@ -61,31 +50,33 @@ namespace LancerEdit
             }
         }
 
-        static List<TeximpNet.Surface> GenerateMipmapsRGBA(string input, MipmapMethod mipm)
+        static List<TeximpNet.Surface> GenerateMipmapsRGBA(string input, MipmapMethod mipm, bool flip)
         {
             List<TeximpNet.Surface> mips = new List<TeximpNet.Surface>();
             var surface = TeximpNet.Surface.LoadFromFile(input);
+            if (flip) surface.FlipVertically();
             surface.ConvertTo(TeximpNet.ImageConversion.To32Bits);
             surface.GenerateMipMaps(mips, (TeximpNet.ImageFilter)mipm);
             return mips;
         }
 
-        public static byte[] TGANoMipmap(string input)
+        public static byte[] TGANoMipmap(string input, bool flip)
         {
             LoadLibraries();
             using(var stream = new MemoryStream()) {
                 using(var surface = TeximpNet.Surface.LoadFromFile(input)) {
+                    if (flip) surface.FlipVertically();
                     surface.ConvertTo(TeximpNet.ImageConversion.To32Bits);
                     surface.SaveToStream(TeximpNet.ImageFormat.TARGA, stream);
                 }
                 return stream.ToArray();
             }
         }
-        public static unsafe List<LUtfNode> TGAMipmaps(string input, MipmapMethod mipm)
+        public static unsafe List<LUtfNode> TGAMipmaps(string input, MipmapMethod mipm, bool flip)
         {
             LoadLibraries();
             var nodes = new List<LUtfNode>();
-            var mips = GenerateMipmapsRGBA(input, mipm);
+            var mips = GenerateMipmapsRGBA(input, mipm, flip);
             for (int i = 0; i < mips.Count; i++) {
                 using(var stream = new MemoryStream()) {
                     mips[i].SaveToStream(TeximpNet.ImageFormat.TARGA, stream);
@@ -96,7 +87,7 @@ namespace LancerEdit
             }
             return nodes;
         }
-        public static byte[] CreateDDS(string input, DDSFormat format, MipmapMethod mipm, bool slow)
+        public static byte[] CreateDDS(string input, DDSFormat format, MipmapMethod mipm, bool slow, bool flip)
         {
             LoadLibraries();
             using (var stream = new MemoryStream())
@@ -109,10 +100,11 @@ namespace LancerEdit
                     {
                         using (var surface = TeximpNet.Surface.LoadFromFile(input))
                         {
+                            if (flip) surface.FlipVertically();
                             compress.Input.SetData(surface);
                         }
                     } else {
-                        var mips = GenerateMipmapsRGBA(input, mipm);
+                        var mips = GenerateMipmapsRGBA(input, mipm, flip);
                         compress.Input.SetTextureLayout(TextureType.Texture2D, mips[0].Width, mips[0].Height);
 
                         for (int i = 0; i < mips.Count; i++) {

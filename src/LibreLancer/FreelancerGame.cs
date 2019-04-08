@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -23,7 +12,7 @@ namespace LibreLancer
 {
 	public class FreelancerGame : Game
     {
-		public LegacyGameData GameData;
+		public GameDataManager GameData;
 		public AudioManager Audio;
 		public FontManager Fonts;
 		public SoundManager Sound;
@@ -52,7 +41,7 @@ namespace LibreLancer
 			}
 		}
 		GameConfig _cfg;
-		public FreelancerGame(GameConfig config) : base(config.BufferWidth, config.BufferHeight, false, config.ForceAngle)
+		public FreelancerGame(GameConfig config) : base(config.BufferWidth, config.BufferHeight, false)
 		{
 			//DO NOT RUN CODE HERE. IT CAUSES THE STUPIDEST CRASH ON OSX KNOWN TO MAN
 			_cfg = config;
@@ -62,6 +51,7 @@ namespace LibreLancer
 
 		public void ChangeState(GameState state)
 		{
+            Audio.StopAllSfx();
 			if (currentState != null)
 				currentState.Unregister();
 			currentState = state;
@@ -85,7 +75,7 @@ namespace LibreLancer
 				Audio.Music.Volume = 0f;
 			//Load data
 			FLLog.Info("Game", "Loading game data");
-			GameData = new LegacyGameData(_cfg.FreelancerPath, ResourceManager);
+			GameData = new GameDataManager(_cfg.FreelancerPath, ResourceManager);
 			IntroMovies = GameData.GetIntroMovies();
 			MpvOverride = _cfg.MpvOverride;
             Thread GameDataLoaderThread = new Thread(() =>
@@ -126,6 +116,8 @@ namespace LibreLancer
 
 		protected override void Cleanup()
 		{
+            if (currentState != null)
+                currentState.Unregister();
 			Audio.Music.Stop ();
 			Audio.Dispose ();
 			Screenshots.Stop();

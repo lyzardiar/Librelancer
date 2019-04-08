@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2018
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using LibreLancer;
@@ -48,9 +37,10 @@ namespace LancerEdit
             Title = title;
             this.name = name;
             this.rstate = main.RenderState;
-            aleViewport = new Viewport3D(rstate, main.Viewport);
-            aleViewport.Zoom = 200;
-            aleViewport.ZoomStep = 25;
+            aleViewport = new Viewport3D(main);
+            aleViewport.DefaultOffset = 
+            aleViewport.CameraOffset = new Vector3(0, 0, 200);
+            aleViewport.ModelScale = 25;
             buffer = main.Commands;
             billboards = main.Billboards;
             polyline = main.Polyline;
@@ -92,7 +82,7 @@ namespace LancerEdit
         {
             bool doTabs = false;
             foreach (var t in openTabs) if (t) { doTabs = true; break; }
-            var contentw = ImGui.GetContentRegionAvailableWidth();
+            var contentw = ImGui.GetContentRegionAvailWidth();
             if (doTabs)
             {
                 ImGui.Columns(2, "##alecolumns", true);
@@ -108,7 +98,7 @@ namespace LancerEdit
             lastEffect = currentEffect;
             ImGui.Text("Effect:");
             ImGui.SameLine();
-            ImGui.Combo("##effect", ref currentEffect, effectNames);
+            ImGui.Combo("##effect", ref currentEffect, effectNames, effectNames.Length);
             if (currentEffect != lastEffect) SetupRender(currentEffect);
             ImGui.SameLine();
             ImGui.Button("+");
@@ -145,8 +135,8 @@ namespace LancerEdit
         NodeReference selectedReference = null;
         void NodeHierachy()
         {
-            var enabledColor = (Vector4)ImGui.GetStyle().GetColor(ColorTarget.Text);
-            var disabledColor = (Vector4)ImGui.GetStyle().GetColor(ColorTarget.TextDisabled);
+            var enabledColor = (Vector4)ImGui.GetStyle().Colors[(int)ImGuiCol.Text];
+            var disabledColor = (Vector4)ImGui.GetStyle().Colors[(int)ImGuiCol.TextDisabled];
 
             foreach (var reference in instance.Effect.References)
             {
@@ -180,13 +170,13 @@ namespace LancerEdit
                 label = string.Format("Attachment##{0}", idx);
             else
                 label = string.Format("{0}##{1}", reference.Node.NodeName, idx);
-            ImGui.PushStyleColor(ColorTarget.Text, col);
+            ImGui.PushStyleColor(ImGuiCol.Text, col);
             string icon;
             Color4 color;
             NodeIcon(reference.Node, out icon, out color);
             if (reference.Children.Count > 0)
             {
-                if (ImGui.TreeNodeEx(ImGuiExt.Pad(label), TreeNodeFlags.OpenOnDoubleClick | TreeNodeFlags.OpenOnArrow))
+                if (ImGui.TreeNodeEx(ImGuiExt.Pad(label), ImGuiTreeNodeFlags.OpenOnDoubleClick | ImGuiTreeNodeFlags.OpenOnArrow))
                 {
                     Theme.RenderTreeIcon(label.Split('#')[0], icon, color);
                     int j = 0;
@@ -208,11 +198,15 @@ namespace LancerEdit
             }
             ImGui.PopStyleColor();
         }
-
+        
         void DrawGL(int renderWidth, int renderHeight)
         {
             var cam = new LookAtCamera();
-            cam.Update(renderWidth, renderHeight, new Vector3(aleViewport.Zoom, 0, 0), Vector3.Zero);
+            Matrix4 rot = Matrix4.CreateRotationX(aleViewport.CameraRotation.Y) *
+                Matrix4.CreateRotationY(aleViewport.CameraRotation.X);
+            var dir = rot.Transform(Vector3.Forward);
+            var to = aleViewport.CameraOffset + (dir * 10);
+            cam.Update(renderWidth, renderHeight, aleViewport.CameraOffset, to, rot);
             buffer.StartFrame(rstate);
             polyline.SetCamera(cam);
             billboards.Begin(cam, buffer);
@@ -244,6 +238,11 @@ namespace LancerEdit
                     }
                 }
             }
+        }
+
+        public override void OnHotkey(Hotkeys hk)
+        {
+            if (hk == Hotkeys.ResetViewport) aleViewport.ResetControls();
         }
 
         Matrix4 transform = Matrix4.Identity;

@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -77,8 +66,15 @@ namespace LibreLancer.Thorn
 					return mapStorage [(string)indexer];
 				}
 			}
-		}
-
+            set
+            {
+                if (isArray)
+                    arrayStorage[(int)indexer] = value;
+                else
+                    mapStorage[(string)indexer] = value;
+            }
+        }
+        public bool ContainsKey(string key) => mapStorage.ContainsKey(key);
 		public bool TryGetValue(string key, out object value)
 		{
 			return mapStorage.TryGetValue(key, out value);
@@ -103,37 +99,93 @@ namespace LibreLancer.Thorn
 			}
 			return false;
 		}
-		string ToStr(object o)
+        public static Dictionary<string, string> EnumReverse;
+        static string FNice(float f) => f.ToString("0.##########################");
+        static string Rev(string s)
+        {
+            string tmp;
+            if (EnumReverse.TryGetValue(s, out tmp)) return tmp;
+            return s;
+        }
+        string ToStr(object o, string tabs)
 		{
-			if (o is string)
-				return "\"" + o.ToString () + "\"";
-			return o.ToString ();
+            if (o is string)
+                return "\"" + o.ToString() + "\"";
+            else if (o is LuaTable)
+                return ((LuaTable)o).ToStringTab(tabs);
+            else if (o is float)
+                return FNice((float)o);
+            else if (o is bool)
+            {
+                if ((bool)o) return "Y";
+                else return "N";
+            }
+            else if (o is Vector3)
+            {
+                var v = (Vector3)o;
+                return string.Format("{{ {0}, {1}, {2} }}", FNice(v.X), FNice(v.Y), FNice(v.Z));
+            }
+            else if(o.GetType().IsEnum)
+            {
+                var t = o.GetType();
+                var full = Convert.ToUInt32(o);
+
+                foreach (var v in Enum.GetValues(t))
+                {
+                    if (full == Convert.ToUInt32(v)) return Rev(o.ToString());
+                }
+                var sb = new StringBuilder();
+                int count = 0;
+                foreach(var fl in Enum.GetValues(t)) {
+                    var a = Convert.ToUInt32(fl);
+                    if (a == 0) continue;
+                    if((full & a) == a)
+                    {
+                        if (count == 0) sb.Append(Rev(fl.ToString()));
+                        else sb.Append(" + ").Append(Rev(fl.ToString()));
+                        count++;
+                    }
+                }
+                return sb.ToString();
+            }
+            return o.ToString ();
 		}
 		public override string ToString ()
 		{
-			var builder = new StringBuilder ();
-			if (isArray) {
-				builder.Append ("{");
-				for (int i = 0; i < arrayStorage.Length; i++) {
-					var item = arrayStorage [i];
-					if (item == null)
-						break;
-					builder.Append (ToStr(item));
-					builder.Append (",");
-				}
-				builder.Remove (builder.Length - 1, 1);
-				builder.Append ("}");
-			} else {
-				builder.AppendLine ("{");
-				foreach (var k in mapStorage.Keys) {
-					builder.Append (k.ToString ()).Append (" = ").Append (ToStr(mapStorage[k])).AppendLine (",");
-				}
-				builder.Remove (builder.Length - 2, 2);
-				builder.AppendLine ();
-				builder.AppendLine ("}");
-			}
-			return builder.ToString ();
+            if (Capacity == 0) return "{}";
+            return ToStringTab("");
 		}
-	}
+        internal string ToStringTab(string tabs)
+        {
+            if (Capacity == 0) return tabs + "{}";
+            var builder = new StringBuilder();
+            if (isArray)
+            {
+                builder.Append("{");
+                for (int i = 0; i < arrayStorage.Length; i++)
+                {
+                    var item = arrayStorage[i];
+                    if (item == null)
+                        break;
+                    builder.Append(ToStr(item, tabs));
+                    builder.Append(",");
+                }
+                builder.Remove(builder.Length - 1, 1);
+                builder.Append("}");
+            }
+            else
+            {
+                builder.AppendLine("{");
+                foreach (var k in mapStorage.Keys)
+                {
+                    builder.Append(tabs).Append("    ").Append(k.ToString()).Append(" = ").Append(ToStr(mapStorage[k],tabs + "    ")).AppendLine(",");
+                }
+                builder.Remove(builder.Length - 2, 2);
+                builder.AppendLine();
+                builder.Append(tabs).AppendLine("}").Append(tabs);
+            }
+            return builder.ToString();
+        }
+    }
 }
 

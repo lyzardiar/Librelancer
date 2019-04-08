@@ -1,4 +1,8 @@
-﻿using System;
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
+using System;
 using System.Collections.Generic;
 using LibreLancer;
 namespace LancerEdit
@@ -52,6 +56,7 @@ namespace LancerEdit
             AddFix("HpThruster", HpNaming.Number, "fix", Color4.LightGreen);
             AddFix("HpTractor_Source", HpNaming.None, "fix", Color4.Purple);
             AddFix("HpFire", HpNaming.Number, "fix", Color4.Coral);
+            AddFix("HpConnect", HpNaming.None, "fix", Color4.Coral);
 
             AddRev("HpTorpedo", HpNaming.Number, "rev", Color4.LightGreen);
             AddRev("HpTurret", HpNaming.Number, "rev", Color4.LightGreen);

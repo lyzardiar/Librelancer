@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.IO;
 using System.Collections.Generic;
@@ -38,42 +27,46 @@ namespace LibreLancer
 		Dictionary<string, TextureShape> shapes = new Dictionary<string, TextureShape>(StringComparer.OrdinalIgnoreCase);
 		Dictionary<string, Cursor> cursors = new Dictionary<string, Cursor>(StringComparer.OrdinalIgnoreCase);
 		Dictionary<string, TexFrameAnimation> frameanims = new Dictionary<string, TexFrameAnimation>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, Fx.ParticleLibrary> particlelibs = new Dictionary<string, Fx.ParticleLibrary>(StringComparer.OrdinalIgnoreCase);
+
 		List<string> loadedResFiles = new List<string>();
 		List<string> preloadFiles = new List<string>();
 
         Dictionary<int, QuadSphere> quadSpheres = new Dictionary<int, QuadSphere>();
+        Dictionary<int, OpenCylinder> cylinders = new Dictionary<int, OpenCylinder>();
 
         VertexResource<VertexPosition> posResource = new VertexResource<VertexPosition>();
         VertexResource<VertexPositionColor> posColorResource = new VertexResource<VertexPositionColor>();
         VertexResource<VertexPositionNormal> posNormalResource = new VertexResource<VertexPositionNormal>();
         VertexResource<VertexPositionColorTexture> posColorTextureResource = new VertexResource<VertexPositionColorTexture>();
         VertexResource<VertexPositionNormalTexture> posNormalTextureResource = new VertexResource<VertexPositionNormalTexture>();
-        VertexResource<VertexPositionNormalColorTexture> posNormalColorTextureResource = new VertexResource<VertexPositionNormalColorTexture>();
+        VertexResource<VertexPositionNormalDiffuseTexture> posNormalColorTextureResource = new VertexResource<VertexPositionNormalDiffuseTexture>();
         VertexResource<VertexPositionNormalTextureTwo> posNormalTextureTwoResource = new VertexResource<VertexPositionNormalTextureTwo>();
         VertexResource<VertexPositionNormalDiffuseTextureTwo> posNormalDiffuseTextureTwoResource = new VertexResource<VertexPositionNormalDiffuseTextureTwo>();
 
         T[] As<T>(object input) => (T[])input;
 
-        public void AllocateVertices<T>(T[] vertices, ushort[] indices, out int startIndex, out int baseVertex, out VertexBuffer vbo) where T: struct
+        public void AllocateVertices<T>(T[] vertices, ushort[] indices, out int startIndex, out int baseVertex, out VertexBuffer vbo, out IndexResourceHandle index) where T: struct
         {
             vbo = null;
+            index = null;
             startIndex = baseVertex = -1;
             if(typeof(T) == typeof(VertexPosition)) {
-                posResource.Allocate(As<VertexPosition>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posResource.Allocate(As<VertexPosition>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionColor)) {
-                posColorResource.Allocate(As<VertexPositionColor>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posColorResource.Allocate(As<VertexPositionColor>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionNormal)) {
-                posNormalResource.Allocate(As<VertexPositionNormal>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posNormalResource.Allocate(As<VertexPositionNormal>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionColorTexture)) {
-                posColorTextureResource.Allocate(As<VertexPositionColorTexture>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posColorTextureResource.Allocate(As<VertexPositionColorTexture>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionNormalTexture)) {
-                posNormalTextureResource.Allocate(As<VertexPositionNormalTexture>(vertices), indices, out vbo, out startIndex, out baseVertex);
-            } else if (typeof(T) == typeof(VertexPositionNormalColorTexture)) {
-                posNormalColorTextureResource.Allocate(As<VertexPositionNormalColorTexture>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posNormalTextureResource.Allocate(As<VertexPositionNormalTexture>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
+            } else if (typeof(T) == typeof(VertexPositionNormalDiffuseTexture)) {
+                posNormalColorTextureResource.Allocate(As<VertexPositionNormalDiffuseTexture>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionNormalTextureTwo)) {
-                posNormalTextureTwoResource.Allocate(As<VertexPositionNormalTextureTwo>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posNormalTextureTwoResource.Allocate(As<VertexPositionNormalTextureTwo>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else if (typeof(T) == typeof(VertexPositionNormalDiffuseTextureTwo)) {
-                posNormalDiffuseTextureTwoResource.Allocate(As<VertexPositionNormalDiffuseTextureTwo>(vertices), indices, out vbo, out startIndex, out baseVertex);
+                posNormalDiffuseTextureTwoResource.Allocate(As<VertexPositionNormalDiffuseTextureTwo>(vertices), indices, out vbo, out startIndex, out baseVertex, out index);
             } else {
                 throw new NotSupportedException("Allocate " + typeof(T).Name);
             }
@@ -88,7 +81,17 @@ namespace LibreLancer
             return sph;
         }
 
-		public Dictionary<string, Texture> TextureDictionary
+        public OpenCylinder GetOpenCylinder(int slices)
+        {
+            OpenCylinder cyl;
+            if (!cylinders.TryGetValue(slices, out cyl))
+            {
+                cyl = new OpenCylinder(slices);
+                cylinders.Add(slices, cyl);
+            }
+            return cyl;
+        }
+        public Dictionary<string, Texture> TextureDictionary
 		{
 			get
 			{
@@ -176,6 +179,7 @@ namespace LibreLancer
 
 		public void ClearTextures()
 		{
+            loadedResFiles = new List<string>();
 			var keys = new string[textures.Count];
 			textures.Keys.CopyTo(keys, 0);
 			foreach (var k in keys)
@@ -214,9 +218,14 @@ namespace LibreLancer
 			return m;
 		}
 
-		public VMeshData FindMesh (uint vMeshLibId)
+     
+
+        public VMeshData FindMesh (uint vMeshLibId)
 		{
-			return meshes [vMeshLibId];
+            VMeshData vms;
+            meshes.TryGetValue(vMeshLibId, out vms);
+            if (vms == null) FLLog.Warning("ResourceManager", "Mesh " + vMeshLibId + " not found");
+            return vms;
 		}
 
 		public void AddResources(Utf.IntermediateNode node, string id)
@@ -256,18 +265,34 @@ namespace LibreLancer
 			foreach (var key in removeMats) materials.Remove(key);
 		}
 
+        public Fx.ParticleLibrary GetParticleLibrary(string filename)
+        {
+            Fx.ParticleLibrary lib;
+            if (!particlelibs.TryGetValue(filename, out lib))
+            {
+                var ale = new Utf.Ale.AleFile(filename);
+                lib = new Fx.ParticleLibrary(this, ale);
+                particlelibs.Add(filename, lib);
+            }
+            return lib;
+        }
 
 
-		public void LoadResourceFile(string filename)
+        public void LoadResourceFile(string filename)
 		{
-			MatFile mat;
-			TxmFile txm;
-			VmsFile vms;
-			Utf.UtfLoader.LoadResourceFile(filename, this, out mat, out txm, out vms);
-			if (mat != null) AddMaterials(mat, filename);
-			if (txm != null) AddTextures(txm, filename);
-			if (vms != null) AddMeshes(vms);
-			if (vms == null && mat == null && txm == null) throw new Exception("Not a resource file " + filename);
+            var fn = filename.ToLowerInvariant();
+            if (!loadedResFiles.Contains(fn))
+            {
+                MatFile mat;
+                TxmFile txm;
+                VmsFile vms;
+                Utf.UtfLoader.LoadResourceFile(filename, this, out mat, out txm, out vms);
+                if (mat != null) AddMaterials(mat, filename);
+                if (txm != null) AddTextures(txm, filename);
+                if (vms != null) AddMeshes(vms);
+                if (vms == null && mat == null && txm == null) throw new Exception("Not a resource file " + filename);
+                loadedResFiles.Add(fn);
+            }
 		}
 
 		void AddTextures(TxmFile t, string filename)

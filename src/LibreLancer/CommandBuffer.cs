@@ -1,18 +1,7 @@
-﻿/* The contents of this file are subject to the Mozilla Public License
- * Version 1.1 (the "License"); you may not use this file except in
- * compliance with the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- * 
- * Software distributed under the License is distributed on an "AS IS"
- * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
- * License for the specific language governing rights and limitations
- * under the License.
- * 
- * 
- * The Initial Developer of the Original Code is Callum McGing (mailto:callum.mcging@gmail.com).
- * Portions created by the Initial Developer are Copyright (C) 2013-2016
- * the Initial Developer. All Rights Reserved.
- */
+﻿// MIT License - Copyright (c) Callum McGing
+// This file is subject to the terms and conditions defined in
+// LICENSE, which is part of this source code package
+
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -90,8 +79,7 @@ namespace LibreLancer
 				Start = start,
 				Count = count,
 				Primitive = primitive,
-				CmdType = RenderCmdType.Material,
-				Fade = true,
+				CmdType = RenderCmdType.MaterialFade,
 				BaseVertex = *(int*)(&fadeParams.X),
 				Index = *(int*)(&fadeParams.Y),
 				World = world,
@@ -283,9 +271,10 @@ namespace LibreLancer
 				return cmds[x].Z.CompareTo(cmds[y].Z);
 		}
 	}
-	public enum RenderCmdType
+	public enum RenderCmdType : byte
 	{
 		Material,
+        MaterialFade,
 		Shader,
 		Billboard,
 		BillboardCustom
@@ -303,27 +292,26 @@ namespace LibreLancer
 		public RenderCmdType CmdType;
 		public int Start;
 		public int Count;
-		public Lighting Lights;
+        public Lighting Lights;
 		public float Z;
 		public int SortLayer;
 		public MaterialAnim MaterialAnim;
 		public int Hash;
 		public int Index;
-		public bool Fade;
 		public override string ToString()
 		{
 			return string.Format("[Z: {0}]", Z);
 		}
 		public unsafe void Run(RenderState state)
 		{
-			if (CmdType == RenderCmdType.Material)
+			if (CmdType == RenderCmdType.Material || CmdType == RenderCmdType.MaterialFade)
 			{
 				var Material = (RenderMaterial)Source;
 				if (Material == null)
 					return;
 				Material.MaterialAnim = MaterialAnim;
 				Material.World = World;
-				if (Fade)
+				if (CmdType == RenderCmdType.MaterialFade)
 				{
 					Material.Fade = true;
 					var fn = BaseVertex;
@@ -331,8 +319,9 @@ namespace LibreLancer
 					Material.FadeNear = *(float*)(&fn);
 					Material.FadeFar = *(float*)(&ff);
 				}
+                if (Material.DisableCull) state.Cull = false;
 				Material.Use(state, Buffer.VertexType, ref Lights);
-				if (!Fade && BaseVertex != -1)
+				if ((CmdType != RenderCmdType.MaterialFade) && BaseVertex != -1)
 					Buffer.Draw(Primitive, BaseVertex, Start, Count);
 				else
 					Buffer.Draw(Primitive, Count);
@@ -341,17 +330,18 @@ namespace LibreLancer
                     Material.FlipNormals = true;
                     Material.UpdateFlipNormals();
 					state.CullFace = CullFaces.Front;
-					if (!Fade && BaseVertex != -1)
+					if ((CmdType != RenderCmdType.MaterialFade) && BaseVertex != -1)
 						Buffer.Draw(Primitive, BaseVertex, Start, Count);
 					else
 						Buffer.Draw(Primitive, Count);
 					state.CullFace = CullFaces.Back;
                     Material.FlipNormals = false;
 				}
-				if (Fade)
+				if (CmdType == RenderCmdType.MaterialFade)
 				{
 					Material.Fade = false;
 				}
+                if (Material.DisableCull) state.Cull = true;
 			}
 			else if (CmdType == RenderCmdType.Shader)
 			{
